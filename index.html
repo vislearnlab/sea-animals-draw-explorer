@@ -9,7 +9,7 @@
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--txt);
     font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  #app { display:grid; grid-template-columns:318px 1fr; height:100vh; }
+  #app { display:grid; grid-template-columns:312px 1fr; height:100vh; }
   #side { background:var(--panel); border-right:1px solid var(--line); padding:16px; overflow-y:auto; }
   #side h1 { font-size:15px; margin:0 0 2px; }
   #side .sub { color:var(--muted); font-size:11px; margin-bottom:14px; }
@@ -19,11 +19,6 @@
   select, button, input[type=search] { background:var(--panel2); color:var(--txt);
     border:1px solid var(--line); border-radius:7px; padding:7px 9px; font:inherit; width:100%; }
   select:focus, input:focus { outline:1px solid var(--accent); }
-  /* modality segmented control */
-  #modality { display:flex; gap:0; border:1px solid var(--line); border-radius:9px; overflow:hidden; margin-bottom:14px; }
-  #modality button { border:none; border-radius:0; background:var(--panel2); padding:9px 4px; cursor:pointer;
-    font-weight:600; font-size:12.5px; color:var(--muted); }
-  #modality button.on { background:var(--accent); color:#06202a; }
   .rangewrap { display:flex; align-items:center; gap:8px; }
   .rangewrap input[type=range] { flex:1; accent-color:var(--accent); }
   #legend { display:flex; flex-direction:column; gap:4px; }
@@ -35,35 +30,46 @@
   .btnrow { display:flex; gap:6px; flex-wrap:wrap; }
   .chip { cursor:pointer; width:auto; padding:5px 9px; font-size:11.5px; border-radius:20px; }
   .chip:hover { border-color:var(--accent); }
-  #catlist { border:1px solid var(--line); border-radius:8px;
-    padding:6px 8px; background:var(--panel2); display:grid; grid-template-columns:1fr 1fr; gap:1px 10px; }
-  #catlist label { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer;
-    text-transform:capitalize; padding:2px 0; }
+  #catlist { border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:var(--panel2);
+    display:grid; grid-template-columns:1fr 1fr; gap:1px 10px; }
+  #catlist label { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; text-transform:capitalize; padding:2px 0; }
   #catlist input { accent-color:var(--accent); margin:0; }
   .toggle { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; padding:6px 0; }
   .toggle input { accent-color:var(--accent); width:auto; }
-  #main { position:relative; overflow:hidden; }
-  #cv { display:block; width:100%; height:100%; cursor:crosshair; }
-  #hint { position:absolute; left:14px; bottom:12px; color:var(--muted); font-size:11px;
-    background:rgba(11,22,34,.7); padding:5px 9px; border-radius:7px; pointer-events:none; }
-  #card { position:absolute; top:14px; right:14px; width:236px; background:var(--panel);
-    border:1px solid var(--line); border-radius:11px; padding:12px; display:none; }
+  /* dual panes */
+  #panes { display:grid; grid-template-columns:1fr 1fr; height:100vh; }
+  .pane { position:relative; overflow:hidden; }
+  .pane:first-child { border-right:1px solid var(--line); }
+  .pane canvas { display:block; width:100%; height:100%; cursor:crosshair; }
+  .pane .ttl { position:absolute; left:14px; top:11px; font-weight:600; font-size:13px; pointer-events:none;
+    background:rgba(11,22,34,.7); padding:4px 9px; border-radius:7px; }
+  .pane .ttl small { color:var(--muted); font-weight:400; }
+  .pane .lk { position:absolute; right:12px; top:11px; font-size:11px; color:var(--accent); pointer-events:none;
+    background:rgba(11,22,34,.7); padding:4px 9px; border-radius:7px; display:none; }
+  /* paired card (floats over the panes) */
+  #card { position:absolute; top:46px; right:14px; width:264px; background:var(--panel);
+    border:1px solid var(--line); border-radius:11px; padding:12px; display:none; z-index:5;
+    max-height:calc(100vh - 60px); overflow-y:auto; }
   #card.show { display:block; }
-  #card img { width:212px; height:212px; image-rendering:auto; background:#fff; border-radius:8px; display:block; }
-  #cardText { background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:9px 10px;
-    font-size:13px; line-height:1.5; color:#dce8f1; max-height:150px; overflow-y:auto; font-style:italic; }
-  #card .cat { font-weight:600; margin:9px 0 2px; font-size:14px; text-transform:capitalize; }
-  #card table { width:100%; border-collapse:collapse; margin-top:6px; font-size:12px; }
-  #card td { padding:2px 0; }
-  #card td.k { color:var(--muted); }
-  #card td.v { text-align:right; font-variant-numeric:tabular-nums; }
-  #card tr.sec td { color:var(--accent); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding-top:7px; }
+  #card .cat { font-weight:600; margin:2px 24px 8px 0; font-size:14px; text-transform:capitalize; }
+  #card .cat .who { color:var(--muted); font-weight:400; text-transform:none; }
+  .panebox { border:1px solid var(--line); border-radius:9px; padding:8px; margin-bottom:9px; background:var(--panel2); }
+  .panebox.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .panebox .lab { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px; }
+  .panebox img { width:228px; height:228px; image-rendering:auto; background:#fff; border-radius:6px; display:block; }
+  .panebox .txt { font-size:13px; line-height:1.5; color:#dce8f1; font-style:italic; max-height:120px; overflow-y:auto; }
+  .panebox .none { color:var(--muted); font-size:12px; font-style:italic; }
+  .panebox table { width:100%; border-collapse:collapse; margin-top:7px; font-size:11.5px; }
+  .panebox td { padding:1px 0; }
+  .panebox td.k { color:var(--muted); }
+  .panebox td.v { text-align:right; font-variant-numeric:tabular-nums; }
+  .corr { font-size:11.5px; color:var(--muted); padding:1px 2px; }
+  .corr b { color:var(--txt); }
   .pill { display:inline-block; padding:1px 7px; border-radius:20px; font-size:11px; font-weight:600; text-transform:capitalize; }
   .pill.ok { background:#11351f; color:#5ed694; }
   .pill.no { background:#3a1b1b; color:#ff8a8a; }
   .pill.n  { background:#123247; color:#7fd6e6; }
-  #close { position:absolute; top:8px; right:10px; cursor:pointer; color:var(--muted); border:none;
-    background:none; font-size:18px; width:auto; padding:0; }
+  #close { position:absolute; top:8px; right:10px; cursor:pointer; color:var(--muted); border:none; background:none; font-size:18px; width:auto; padding:0; }
   #close:hover { color:var(--txt); }
   a { color:var(--accent); }
 </style>
@@ -72,12 +78,7 @@
 <div id="app">
   <aside id="side">
     <h1>🐙 Sea Animals Explorer</h1>
-    <div class="sub">Children's &amp; adults' <b>drawings</b> and <b>descriptions</b> of six sea animals, laid out by CLIP zero-shot classification. <span id="count"></span></div>
-
-    <div id="modality">
-      <button data-mod="drawings" class="on">✏️ Drawings</button>
-      <button data-mod="descriptions">💬 Descriptions</button>
-    </div>
+    <div class="sub">Children's &amp; adults' <b>drawings</b> and <b>descriptions</b> of six sea animals, side by side in CLIP space. Hover a point to see its match in the other panel. <span id="count"></span></div>
 
     <div class="group">
       <label class="h" for="colorby">Color by</label>
@@ -123,35 +124,41 @@
 
     <div class="group">
       <label class="toggle"><input type="checkbox" id="kidsOnly" /> Children only (exclude adults)</label>
+      <label class="toggle"><input type="checkbox" id="pairedOnly" /> Only items with both a drawing &amp; description</label>
       <label class="toggle"><input type="checkbox" id="correctOnly" /> CLIP-correct only</label>
     </div>
 
     <div class="group"><button id="reset" style="cursor:pointer;">Reset view</button></div>
 
     <div class="stat" id="visStat"></div>
-    <div class="stat" id="layoutNote" style="margin-top:14px;"></div>
+    <div class="stat" style="margin-top:12px;">Each panel: t-SNE of the 6-way CLIP (ViT-B-32) zero-shot probability vector. Drag to pan · scroll to zoom · hover for the item &amp; its cross-modal match · click to pin.</div>
   </aside>
 
-  <main id="main">
-    <canvas id="cv"></canvas>
-    <div id="hint">loading data…</div>
-    <div id="card">
-      <button id="close">×</button>
-      <img id="cardImg" alt="" />
-      <div id="cardText" style="display:none;"></div>
-      <div class="cat" id="cardCat"></div>
-      <table><tbody id="cardTbl"></tbody></table>
+  <main id="panes">
+    <div class="pane" id="paneDraw">
+      <canvas></canvas>
+      <div class="ttl">✏️ Drawings <small id="cntDraw"></small></div>
+      <div class="lk">↔ matched description</div>
+    </div>
+    <div class="pane" id="paneDesc">
+      <canvas></canvas>
+      <div class="ttl">💬 Descriptions <small id="cntDesc"></small></div>
+      <div class="lk">↔ matched drawing</div>
+      <div id="card">
+        <button id="close">×</button>
+        <div class="cat" id="cardCat"></div>
+        <div id="cardBody"></div>
+      </div>
     </div>
   </main>
 </div>
 
 <script>
 const IMG_BASE_FALLBACKS = ["./", "", "../"];
-let ALL=null, D=null, MOD="drawings", IMG_BASE="./";
-const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
-const card = document.getElementById("card");
+let ALL=null, IMG_BASE="./";
 const NODATA = "#33414d";
 const RECOG_LO=-0.4, RECOG_HI=0.9;
+const card = document.getElementById("card");
 
 // ---------- color helpers ----------
 function lerp(a,b,t){return a+(b-a)*t;}
@@ -163,110 +170,151 @@ function ramp(stops,t){t=Math.max(0,Math.min(1,t));const s=t*(stops.length-1);co
 function catColor(i,n){return `hsl(${(i*360/n)%360},62%,58%)`;}
 function hsl(h,s,l){return `hsl(${h},${s}%,${l}%)`;}
 
-// ---------- view ----------
-let scale=1, tx=0, ty=0, fit={s:1,ox:0,oy:0};
-function worldToScreen(x,y){return [ (x*fit.s+fit.ox)*scale+tx, (y*fit.s+fit.oy)*scale+ty ];}
-function resize(){
-  const r=cv.parentElement.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
-  cv.width=r.width*dpr; cv.height=r.height*dpr; cv.style.width=r.width+"px"; cv.style.height=r.height+"px";
-  ctx.setTransform(dpr,0,0,dpr,0,0); computeFit(r.width,r.height); draw();
-}
-function computeFit(w,h){ const pad=40, s=Math.min((w-2*pad)/1000,(h-2*pad)/1000);
-  fit.s=s; fit.ox=(w-1000*s)/2; fit.oy=(h-1000*s)/2; }
-
-// ---------- filters ----------
-const F = { cats:new Set(), ageMin:3, ageMax:30, kidsOnly:false, correctOnly:false };
-function catSelected(i){ return F.cats.size===0 || F.cats.has(D.cat[i]); }
-function passes(i){
-  if(!catSelected(i)) return false;
-  const a=D.age[i]; if(a<F.ageMin||a>F.ageMax) return false;
-  if(F.kidsOnly && D.is_adult[i]) return false;
-  if(F.correctOnly && !D.clip_correct[i]) return false;
-  return true;
-}
-
-// ---------- color mode ----------
+// ---------- shared filters / color ----------
+const F = { cats:new Set(), ageMin:3, ageMax:30, kidsOnly:false, pairedOnly:false, correctOnly:false };
 let colorMode="clip_tp";
 const NULLABLE = {recog:1, conf:1};
-function colorOf(i){
+let CATS=[];
+let selKey=null, pinned=false;   // current cross-modal selection key "pid|cat"
+
+function colorOf(D,i){
   switch(colorMode){
     case "clip_tp":     return ramp(VIRIDIS, D.clip_tp[i]);
     case "clip_correct":return D.clip_correct[i] ? "#5ed694" : "#ff6b6b";
     case "clip_logodds":return ramp(VIRIDIS, (D.clip_logodds[i]+10)/16);
-    case "clip_guess":  return catColor(D.clip_guess[i], D.categories.length);
+    case "clip_guess":  return catColor(D.clip_guess[i], CATS.length);
     case "recog":       { const v=D.recog[i]; return v==null?null:ramp(VIRIDIS,(v-RECOG_LO)/(RECOG_HI-RECOG_LO)); }
     case "conf":        { const v=D.conf[i];  return v==null?null:ramp(MAGMA,(v-0.2)/0.6); }
     case "age":         return hsl(lerp(220,12,(Math.min(D.age[i],12)-3)/9),70,58);
-    case "cat":         return catColor(D.cat[i], D.categories.length);
+    case "cat":         return catColor(D.cat[i], CATS.length);
   }
 }
-
-// ---------- draw ----------
-let hoverIdx=-1, pinIdx=-1;
-function draw(){
-  const w=cv.clientWidth,h=cv.clientHeight; ctx.clearRect(0,0,w,h);
-  const r = Math.max(1.3, Math.min(4.4, 1.25*scale));
-  const nullable = NULLABLE[colorMode];
-  if(nullable){
-    ctx.globalAlpha=0.16; ctx.fillStyle=NODATA;
-    for(let i=0;i<D.n;i++){ if(!passes(i) || D[colorMode][i]!=null) continue;
-      const [sx,sy]=worldToScreen(D.x[i],D.y[i]); if(sx<-4||sy<-4||sx>w+4||sy>h+4) continue;
-      ctx.beginPath(); ctx.arc(sx,sy,r,0,6.283); ctx.fill(); }
-  }
-  ctx.globalAlpha=0.85;
-  for(let i=0;i<D.n;i++){ if(!passes(i)) continue;
-    const col=colorOf(i); if(col===null) continue;
-    const [sx,sy]=worldToScreen(D.x[i],D.y[i]); if(sx<-4||sy<-4||sx>w+4||sy>h+4) continue;
-    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(sx,sy,nullable?r+0.6:r,0,6.283); ctx.fill(); }
-  ctx.globalAlpha=1;
-  for(const [idx,col,rad] of [[pinIdx,"#fff",6],[hoverIdx,"#fff",5]]){
-    if(idx<0||!passes(idx)) continue;
-    const [sx,sy]=worldToScreen(D.x[idx],D.y[idx]);
-    ctx.beginPath(); ctx.arc(sx,sy,rad,0,6.283); ctx.strokeStyle=col; ctx.lineWidth=2; ctx.stroke();
-    const c=colorOf(idx); ctx.beginPath(); ctx.arc(sx,sy,rad-2,0,6.283); ctx.fillStyle=c||NODATA; ctx.fill(); }
+function passes(D,i){
+  if(!(F.cats.size===0 || F.cats.has(D.cat[i]))) return false;
+  const a=D.age[i]; if(a<F.ageMin||a>F.ageMax) return false;
+  if(F.kidsOnly && D.is_adult[i]) return false;
+  if(F.correctOnly && !D.clip_correct[i]) return false;
+  if(F.pairedOnly && D.partner[i]<0) return false;
+  return true;
 }
-function nearest(px,py){ let best=-1, bd=14*14;
-  for(let i=0;i<D.n;i++){ if(!passes(i)) continue;
-    const [sx,sy]=worldToScreen(D.x[i],D.y[i]); const dx=sx-px,dy=sy-py,d=dx*dx+dy*dy;
-    if(d<bd){bd=d;best=i;} } return best; }
 
-// ---------- detail card ----------
+// ---------- a Pane wraps one canvas + one dataset ----------
+class Pane {
+  constructor(rootId, mod){
+    this.root=document.getElementById(rootId); this.mod=mod;
+    this.cv=this.root.querySelector("canvas"); this.ctx=this.cv.getContext("2d");
+    this.lk=this.root.querySelector(".lk");
+    this.scale=1; this.tx=0; this.ty=0; this.fit={s:1,ox:0,oy:0};
+    this.drag=false; this.moved=false; this.lastX=0; this.lastY=0;
+    this.bind();
+  }
+  setData(D){ this.D=D; }
+  w(){return this.cv.clientWidth;} h(){return this.cv.clientHeight;}
+  resize(){
+    const r=this.cv.parentElement.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    this.cv.width=r.width*dpr; this.cv.height=r.height*dpr; this.cv.style.width=r.width+"px"; this.cv.style.height=r.height+"px";
+    this.ctx.setTransform(dpr,0,0,dpr,0,0);
+    const pad=40, s=Math.min((r.width-2*pad)/1000,(r.height-2*pad)/1000);
+    this.fit={s, ox:(r.width-1000*s)/2, oy:(r.height-1000*s)/2};
+    this.draw();
+  }
+  toScreen(x,y){return [ (x*this.fit.s+this.fit.ox)*this.scale+this.tx, (y*this.fit.s+this.fit.oy)*this.scale+this.ty ];}
+  draw(){
+    const D=this.D, ctx=this.ctx, w=this.w(), h=this.h(); ctx.clearRect(0,0,w,h);
+    const r=Math.max(1.3, Math.min(4.4, 1.25*this.scale));
+    const nullable=NULLABLE[colorMode];
+    if(nullable){ ctx.globalAlpha=0.16; ctx.fillStyle=NODATA;
+      for(let i=0;i<D.n;i++){ if(!passes(D,i)||D[colorMode][i]!=null) continue;
+        const [sx,sy]=this.toScreen(D.x[i],D.y[i]); if(sx<-4||sy<-4||sx>w+4||sy>h+4) continue;
+        ctx.beginPath(); ctx.arc(sx,sy,r,0,6.283); ctx.fill(); } }
+    ctx.globalAlpha=0.85;
+    for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue;
+      const col=colorOf(D,i); if(col===null) continue;
+      const [sx,sy]=this.toScreen(D.x[i],D.y[i]); if(sx<-4||sy<-4||sx>w+4||sy>h+4) continue;
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(sx,sy,nullable?r+0.6:r,0,6.283); ctx.fill(); }
+    ctx.globalAlpha=1;
+    // highlight the selected cross-modal item in THIS pane
+    const si = selKey==null ? -1 : (D.byKey[selKey] ?? -1);
+    this.lk.style.display = (si>=0 && passes(D,si)) ? "block" : "none";
+    if(si>=0 && passes(D,si)){
+      const [sx,sy]=this.toScreen(D.x[si],D.y[si]);
+      ctx.beginPath(); ctx.arc(sx,sy,7,0,6.283); ctx.strokeStyle=pinned?"#fff":"#cfefff"; ctx.lineWidth=2.5; ctx.stroke();
+      const c=colorOf(D,si); ctx.beginPath(); ctx.arc(sx,sy,5,0,6.283); ctx.fillStyle=c||NODATA; ctx.fill();
+    }
+  }
+  nearest(px,py){ const D=this.D; let best=-1,bd=14*14;
+    for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue;
+      const [sx,sy]=this.toScreen(D.x[i],D.y[i]); const dx=sx-px,dy=sy-py,d=dx*dx+dy*dy;
+      if(d<bd){bd=d;best=i;} } return best; }
+  bind(){
+    this.cv.addEventListener("mousedown",e=>{this.drag=true;this.moved=false;this.lastX=e.clientX;this.lastY=e.clientY;});
+    window.addEventListener("mouseup",()=>{this.drag=false;});
+    this.cv.addEventListener("mousemove",e=>{
+      const rect=this.cv.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
+      if(this.drag){ const dx=e.clientX-this.lastX, dy=e.clientY-this.lastY;
+        if(Math.abs(dx)+Math.abs(dy)>2) this.moved=true;
+        this.tx+=dx; this.ty+=dy; this.lastX=e.clientX; this.lastY=e.clientY; this.draw(); return; }
+      if(pinned) return;
+      const hh=this.nearest(px,py);
+      const key = hh>=0 ? this.D.pid[hh]+"|"+this.D.cat[hh] : null;
+      if(key!==selKey){ selKey=key; drawAll(); if(key) showCard(key); else card.classList.remove("show"); }
+    });
+    this.cv.addEventListener("click",e=>{ if(this.moved) return;
+      const rect=this.cv.getBoundingClientRect(); const hh=this.nearest(e.clientX-rect.left,e.clientY-rect.top);
+      if(hh>=0){ selKey=this.D.pid[hh]+"|"+this.D.cat[hh]; pinned=true; showCard(selKey); drawAll(); }
+      else { pinned=false; selKey=null; card.classList.remove("show"); drawAll(); } });
+    this.cv.addEventListener("wheel",e=>{ e.preventDefault();
+      const rect=this.cv.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
+      const f=Math.exp(-e.deltaY*0.0015); this.tx=px-(px-this.tx)*f; this.ty=py-(py-this.ty)*f; this.scale*=f;
+      this.scale=Math.max(0.4,Math.min(60,this.scale)); this.draw(); },{passive:false});
+  }
+  reset(){ this.scale=1; this.tx=0; this.ty=0; this.resize(); }
+}
+const PD=new Pane("paneDraw","drawings"), PT=new Pane("paneDesc","descriptions");
+function drawAll(){ PD.draw(); PT.draw(); }
+
+// ---------- paired detail card ----------
 function fmt(v,d=2){ return (v==null||isNaN(v)) ? "—" : (+v).toFixed(d); }
-function showCard(i){
-  if(i<0) return; card.classList.add("show");
-  const img=document.getElementById("cardImg"), txt=document.getElementById("cardText");
-  if(MOD==="drawings"){ img.style.display="block"; txt.style.display="none";
-    img.src = IMG_BASE + ALL.draw_dir + "/" + D.file[i];
-  } else { img.style.display="none"; txt.style.display="block"; txt.textContent = "“"+D.text[i]+"”"; }
-  const who = D.is_adult[i] ? "adult" : ("age " + D.age[i]);
-  document.getElementById("cardCat").textContent = D.categories[D.cat[i]] + " · " + who;
-  const guess=D.categories[D.clip_guess[i]], ok=D.clip_correct[i];
-  const recog = D.recog[i]==null
-    ? `<tr><td class="k" colspan="2">adult — defines the prototype</td></tr>`
-    : `<tr><td class="k">cosine to adult</td><td class="v">${fmt(D.recog[i],3)}</td></tr>`;
-  const conf = D.conf_with[i]==null
-    ? `<tr><td class="k" colspan="2">${MOD==='drawings'?'drew':'described'} only this category</td></tr>`
-    : `<tr><td class="k">most like their</td><td class="v"><span class="pill n">${D.categories[D.conf_with[i]]}</span></td></tr>
-       <tr><td class="k">confusion prob</td><td class="v">${fmt(D.conf[i],2)}</td></tr>`;
-  const tail = MOD==="drawings"
-    ? `<tr class="sec"><td colspan="2">Drawing</td></tr>
-       <tr><td class="k"># strokes</td><td class="v">${D.strokes[i]==null?'—':D.strokes[i]}</td></tr>
-       <tr><td class="k">draw time (s)</td><td class="v">${fmt(D.duration[i],1)}</td></tr>
-       <tr><td class="k">ink (mean intensity)</td><td class="v">${fmt(D.intensity[i],3)}</td></tr>`
-    : `<tr class="sec"><td colspan="2">Description</td></tr>
-       <tr><td class="k"># words</td><td class="v">${D.nwords[i]}</td></tr>`;
-  document.getElementById("cardTbl").innerHTML = `
-    <tr class="sec"><td colspan="2">Model (CLIP zero-shot)</td></tr>
-    <tr><td class="k">CLIP guess</td><td class="v">${guess} <span class="pill ${ok?'ok':'no'}">${ok?'correct':'wrong'}</span></td></tr>
-    <tr><td class="k">target prob</td><td class="v">${fmt(D.clip_tp[i],3)}</td></tr>
-    <tr><td class="k">log-odds</td><td class="v">${fmt(D.clip_logodds[i],2)}</td></tr>
-    <tr class="sec"><td colspan="2">Similarity to adults</td></tr>
-    ${recog}
-    <tr class="sec"><td colspan="2">Within-subject confusion</td></tr>
-    ${conf}
-    ${tail}`;
+function modBox(label, D, i, active){
+  if(!D || i<0) return `<div class="panebox"><div class="lab">${label}</div><div class="none">no ${label.toLowerCase()} for this child</div></div>`;
+  const media = D===ALL.drawings
+    ? `<img src="${IMG_BASE+ALL.draw_dir+"/"+D.file[i]}" alt="">`
+    : `<div class="txt">“${D.text[i]}”</div>`;
+  const guess=CATS[D.clip_guess[i]], ok=D.clip_correct[i];
+  const recog = D.recog[i]==null ? `<tr><td class="k" colspan="2">adult — defines prototype</td></tr>`
+    : `<tr><td class="k">sim to adult</td><td class="v">${fmt(D.recog[i],3)}</td></tr>`;
+  const extra = D===ALL.drawings
+    ? `<tr><td class="k"># strokes</td><td class="v">${D.strokes[i]==null?'—':D.strokes[i]}</td></tr>`
+    : `<tr><td class="k"># words</td><td class="v">${D.nwords[i]}</td></tr>`;
+  return `<div class="panebox${active?' active':''}"><div class="lab">${label}</div>${media}
+    <table>
+      <tr><td class="k">CLIP guess</td><td class="v">${guess} <span class="pill ${ok?'ok':'no'}">${ok?'✓':'✗'}</span></td></tr>
+      <tr><td class="k">target prob</td><td class="v">${fmt(D.clip_tp[i],3)}</td></tr>
+      ${recog}${extra}
+    </table></div>`;
 }
-document.getElementById("close").onclick=()=>{card.classList.remove("show");pinIdx=-1;draw();};
+function showCard(key){
+  const di = ALL.drawings.byKey[key] ?? -1, ti = ALL.descriptions.byKey[key] ?? -1;
+  const D = di>=0?ALL.drawings:ALL.descriptions, anyi = di>=0?di:ti;
+  const [pid,catI] = key.split("|");
+  const who = D.is_adult[anyi] ? "adult "+pid : pid+" · age "+D.age[anyi];
+  document.getElementById("cardCat").innerHTML = `${CATS[+catI]} <span class="who">· ${who}</span>`;
+  let corr="";
+  if(di>=0 && ti>=0){
+    const dg=ALL.drawings.clip_guess[di], tg=ALL.descriptions.clip_guess[ti];
+    const agree = dg===tg;
+    corr = `<div class="corr">CLIP sees both as <b>${agree?CATS[dg]:CATS[dg]+" / "+CATS[tg]}</b> — drawing &amp; description ${agree?'<b>agree</b>':'<b>differ</b>'}.</div>`;
+  } else {
+    corr = `<div class="corr">Only a ${di>=0?'drawing':'description'} exists for this child × category.</div>`;
+  }
+  document.getElementById("cardBody").innerHTML =
+    modBox("Drawing", di>=0?ALL.drawings:null, di, di>=0 && selKeyPane()==='drawings') +
+    modBox("Description", ti>=0?ALL.descriptions:null, ti, ti>=0 && selKeyPane()==='descriptions') + corr;
+  card.classList.add("show");
+}
+let _lastPane='drawings';
+function selKeyPane(){ return _lastPane; }
+document.getElementById("close").onclick=()=>{card.classList.remove("show");pinned=false;selKey=null;drawAll();};
 
 // ---------- legend ----------
 function buildLegend(){
@@ -280,7 +328,7 @@ function buildLegend(){
     el.innerHTML=`<div class="row"><span class="sw" style="background:#5ed694"></span>CLIP correct</div>
                   <div class="row"><span class="sw" style="background:#ff6b6b"></span>CLIP wrong</div>`;
   } else if(colorMode==="cat" || colorMode==="clip_guess"){ el.className="group";
-    el.innerHTML = D.categories.map((c,i)=>`<div class="row"><span class="sw" style="background:${catColor(i,D.categories.length)}"></span>${c}</div>`).join("")
+    el.innerHTML = CATS.map((c,i)=>`<div class="row"><span class="sw" style="background:${catColor(i,CATS.length)}"></span>${c}</div>`).join("")
       + (colorMode==="clip_guess"?`<div class="stat">hue = the category CLIP guessed</div>`:``);
   } else if(colorMode==="clip_tp"){ grad(V,"0 (unrecognizable)","1 (clear)",false);
   } else if(colorMode==="clip_logodds"){ grad(V,"low","high",false);
@@ -289,101 +337,78 @@ function buildLegend(){
   } else if(colorMode==="age"){ grad(`${hsl(220,70,58)},${hsl(116,70,58)},${hsl(12,70,58)}`,"age 3","age 12+",false); }
 }
 
-// ---------- visible stat ----------
+// ---------- stats ----------
+function paneStat(D){ let n=0,corr=0,kids=0; for(let i=0;i<D.n;i++){ if(!passes(D,i))continue; n++; corr+=D.clip_correct[i]; if(!D.is_adult[i])kids++; }
+  return {n,corr,kids}; }
 function updateStat(){
-  let n=0, corr=0, tp=0, kids=0;
-  for(let i=0;i<D.n;i++){ if(!passes(i))continue; n++; corr+=D.clip_correct[i]; tp+=D.clip_tp[i]; if(!D.is_adult[i])kids++; }
-  const noun = MOD==="drawings" ? "drawings" : "descriptions";
-  document.getElementById("visStat").textContent =
-    `${n.toLocaleString()} ${noun} · ${kids} children / ${n-kids} adults · ${n?Math.round(100*corr/n):0}% CLIP-correct · mean target prob ${n?(tp/n).toFixed(2):'—'}`;
+  const a=paneStat(ALL.drawings), b=paneStat(ALL.descriptions);
+  document.getElementById("cntDraw").textContent=`· ${a.n} shown · ${a.n?Math.round(100*a.corr/a.n):0}% CLIP-correct`;
+  document.getElementById("cntDesc").textContent=`· ${b.n} shown · ${b.n?Math.round(100*b.corr/b.n):0}% CLIP-correct`;
+  // paired count among visible
+  let paired=0; const D=ALL.drawings;
+  for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue; const j=D.partner[i]; if(j>=0 && passes(ALL.descriptions,j)) paired++; }
+  document.getElementById("visStat").textContent=`${paired} child × category items have BOTH a drawing and a description visible.`;
 }
-
-// ---------- interactions ----------
-let dragging=false, moved=false, lastX=0, lastY=0;
-cv.addEventListener("mousedown",e=>{dragging=true;moved=false;lastX=e.clientX;lastY=e.clientY;});
-window.addEventListener("mouseup",()=>{dragging=false;});
-cv.addEventListener("mousemove",e=>{
-  const rect=cv.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
-  if(dragging){ const dx=e.clientX-lastX, dy=e.clientY-lastY; if(Math.abs(dx)+Math.abs(dy)>2) moved=true;
-    tx+=dx; ty+=dy; lastX=e.clientX; lastY=e.clientY; draw(); return; }
-  const hh=nearest(px,py);
-  if(hh!==hoverIdx){ hoverIdx=hh; draw(); if(hh>=0 && pinIdx<0) showCard(hh); else if(hh<0 && pinIdx<0) card.classList.remove("show"); }
-});
-cv.addEventListener("click",e=>{ if(moved) return;
-  const rect=cv.getBoundingClientRect(); const hh=nearest(e.clientX-rect.left, e.clientY-rect.top);
-  if(hh>=0){ pinIdx=hh; showCard(hh); draw(); } });
-cv.addEventListener("wheel",e=>{ e.preventDefault();
-  const rect=cv.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
-  const f=Math.exp(-e.deltaY*0.0015); tx=px-(px-tx)*f; ty=py-(py-ty)*f; scale*=f;
-  scale=Math.max(0.4,Math.min(60,scale)); draw(); },{passive:false});
 
 // ---------- category checklist ----------
-function refreshCatUI(){
-  document.querySelectorAll("#catlist input").forEach(cb=>{ cb.checked = F.cats.has(+cb.value); });
-  const sel=F.cats.size;
-  document.getElementById("catCount").textContent = `(${sel===0?'none':sel===D.categories.length?'all':sel} selected)`;
-}
+function refreshCatUI(){ document.querySelectorAll("#catlist input").forEach(cb=>{ cb.checked=F.cats.has(+cb.value); });
+  const sel=F.cats.size; document.getElementById("catCount").textContent=`(${sel===0?'none':sel===CATS.length?'all':sel} selected)`; }
 function buildCatList(){
   const list=document.getElementById("catlist"); list.innerHTML="";
-  D.categories.forEach((c,i)=>{
-    const lab=document.createElement("label");
+  CATS.forEach((c,i)=>{ const lab=document.createElement("label");
     lab.innerHTML=`<input type="checkbox" value="${i}" checked> ${c}`;
     lab.querySelector("input").onchange=e=>{ if(e.target.checked) F.cats.add(i); else F.cats.delete(i);
-      refreshCatUI(); draw(); updateStat(); };
-    list.appendChild(lab);
-  });
+      refreshCatUI(); drawAll(); updateStat(); }; list.appendChild(lab); });
   const chips=document.getElementById("groupChips"); chips.innerHTML="";
   Object.keys(ALL.groups||{}).forEach(label=>{ const b=document.createElement("button");
     b.className="chip"; b.textContent=label; b.dataset.grp=label; chips.appendChild(b); });
   document.querySelectorAll(".chip").forEach(b=>{ b.onclick=()=>{ const g=b.dataset.grp;
-    if(g==="__all") D.categories.forEach((_,i)=>F.cats.add(i));
-    else if(g==="__none") F.cats.clear();
+    if(g==="__all") CATS.forEach((_,i)=>F.cats.add(i)); else if(g==="__none") F.cats.clear();
     else { F.cats.clear(); ALL.groups[g].forEach(i=>F.cats.add(i)); }
-    refreshCatUI(); draw(); updateStat(); }; });
+    refreshCatUI(); drawAll(); updateStat(); }; });
 }
 
 // ---------- controls ----------
-document.getElementById("colorby").onchange=e=>{colorMode=e.target.value;buildLegend();draw();updateStat();};
+document.getElementById("colorby").onchange=e=>{colorMode=e.target.value;buildLegend();drawAll();updateStat();};
 function syncAge(){ let lo=+ageMin.value, hi=+ageMax.value; if(lo>hi){[lo,hi]=[hi,lo];}
-  F.ageMin=lo;F.ageMax=hi;
-  document.getElementById("ageLabel").textContent = lo===hi?`age ${lo}`:`ages ${lo}–${hi}${hi>=30?'+':''}`;
-  draw();updateStat(); }
+  F.ageMin=lo;F.ageMax=hi; document.getElementById("ageLabel").textContent=lo===hi?`age ${lo}`:`ages ${lo}–${hi}${hi>=30?'+':''}`;
+  drawAll();updateStat(); }
 const ageMin=document.getElementById("ageMin"), ageMax=document.getElementById("ageMax");
 ageMin.oninput=syncAge; ageMax.oninput=syncAge;
-document.getElementById("kidsOnly").onchange=e=>{F.kidsOnly=e.target.checked;draw();updateStat();};
-document.getElementById("correctOnly").onchange=e=>{F.correctOnly=e.target.checked;draw();updateStat();};
-document.getElementById("reset").onclick=()=>{scale=1;tx=0;ty=0;resize();};
-window.addEventListener("resize",resize);
+document.getElementById("kidsOnly").onchange=e=>{F.kidsOnly=e.target.checked;drawAll();updateStat();};
+document.getElementById("pairedOnly").onchange=e=>{F.pairedOnly=e.target.checked;drawAll();updateStat();};
+document.getElementById("correctOnly").onchange=e=>{F.correctOnly=e.target.checked;drawAll();updateStat();};
+document.getElementById("reset").onclick=()=>{PD.reset();PT.reset();};
+window.addEventListener("resize",()=>{PD.resize();PT.resize();});
 
-// ---------- modality switch ----------
-function setModality(mod){
-  MOD=mod; D=Object.assign({}, ALL[mod], {categories:ALL.categories});
-  document.querySelectorAll("#modality button").forEach(b=>b.classList.toggle("on", b.dataset.mod===mod));
-  F.cats.clear(); D.categories.forEach((_,i)=>F.cats.add(i));
-  hoverIdx=-1; pinIdx=-1; card.classList.remove("show");
-  buildCatList(); refreshCatUI();
-  const kids=D.is_adult.filter(v=>!v).length, uk=new Set();
-  document.getElementById("layoutNote").textContent =
-    `Layout: t-SNE of the 6-way CLIP (ViT-B-32) zero-shot probability vector for each ${mod==='drawings'?'drawing':'description'}. Drag to pan · scroll to zoom · hover for the ${mod==='drawings'?'drawing':'text'} · click to pin.`;
-  document.getElementById("count").textContent=`${D.n.toLocaleString()} ${mod} · ${kids} children + ${D.n-kids} adults.`;
-  scale=1;tx=0;ty=0; buildLegend(); resize(); updateStat();
-}
-document.querySelectorAll("#modality button").forEach(b=>b.onclick=()=>setModality(b.dataset.mod));
+// track which pane the pointer last hovered (for card highlight)
+document.getElementById("paneDraw").addEventListener("mousemove",()=>_lastPane='drawings');
+document.getElementById("paneDesc").addEventListener("mousemove",()=>_lastPane='descriptions');
 
 // ---------- load ----------
+function indexPane(D){ D.byKey={}; for(let i=0;i<D.n;i++) D.byKey[D.pid[i]+"|"+D.cat[i]]=i; }
+function linkPanes(){
+  indexPane(ALL.drawings); indexPane(ALL.descriptions);
+  const link=(A,B)=>{ A.partner=new Array(A.n).fill(-1);
+    for(let i=0;i<A.n;i++){ const j=B.byKey[A.pid[i]+"|"+A.cat[i]]; if(j!=null) A.partner[i]=j; } };
+  link(ALL.drawings, ALL.descriptions); link(ALL.descriptions, ALL.drawings);
+}
 async function load(){
   ALL=await (await fetch("points.json")).json();
+  CATS=ALL.categories;
+  linkPanes();
+  PD.setData(ALL.drawings); PT.setData(ALL.descriptions);
+  CATS.forEach((_,i)=>F.cats.add(i));
+  buildCatList(); refreshCatUI();
+  const kd=ALL.drawings.is_adult.filter(v=>!v).length, kt=ALL.descriptions.is_adult.filter(v=>!v).length;
+  document.getElementById("count").textContent=`${ALL.drawings.n} drawings (${kd} kids) · ${ALL.descriptions.n} descriptions (${kt} kids).`;
   await probeBase();
-  setModality("drawings");
-  document.getElementById("hint").textContent="drag to pan · scroll to zoom · hover for the drawing";
+  buildLegend(); PD.resize(); PT.resize(); updateStat();
 }
-function probeBase(){
-  return new Promise(resolve=>{ let k=0; const f0=ALL.drawings.file[0];
-    const test=()=>{ if(k>=IMG_BASE_FALLBACKS.length){resolve();return;}
-      const im=new Image(); im.onload=()=>{IMG_BASE=IMG_BASE_FALLBACKS[k];resolve();};
-      im.onerror=()=>{k++;test();}; im.src=IMG_BASE_FALLBACKS[k]+ALL.draw_dir+"/"+f0; };
-    test(); });
-}
+function probeBase(){ return new Promise(resolve=>{ let k=0; const f0=ALL.drawings.file[0];
+  const test=()=>{ if(k>=IMG_BASE_FALLBACKS.length){resolve();return;}
+    const im=new Image(); im.onload=()=>{IMG_BASE=IMG_BASE_FALLBACKS[k];resolve();};
+    im.onerror=()=>{k++;test();}; im.src=IMG_BASE_FALLBACKS[k]+ALL.draw_dir+"/"+f0; }; test(); }); }
 load();
 </script>
 </body>

@@ -9,15 +9,22 @@ Built in the style of the
 
 - **602 drawings** (88 children + 20 adults)
 - **538 descriptions** (79 children + 20 adults)
+- **527** child × category items have *both* a drawing and a description.
 
-Toggle between the two modalities with the segmented control at the top.
+The two modalities are shown **side by side** as linked t-SNEs: hover a point in
+one panel and its cross-modal match (the same child's drawing/description of the
+same animal) lights up in the other, with a paired card showing both together —
+so you can explore how a child's drawing and description of the same concept
+correspond.
 
 ## What it shows
 
-Each item is laid out by a 2-D **t-SNE of its 6-way CLIP zero-shot probability
-vector** — the same model the study's preprocessing uses (OpenCLIP **ViT-B-32**,
-`pretrained="openai"`). Confident classifications pull out to the corners of the
-simplex; confusable ones sit in the middle.
+Each panel lays items out by a 2-D **t-SNE of its 6-way CLIP zero-shot
+probability vector** — the same model the study's preprocessing uses (OpenCLIP
+**ViT-B-32**, `pretrained="openai"`). Confident classifications pull out to the
+corners of the simplex; confusable ones sit in the middle. Color, category /
+age filters, children-only, CLIP-correct-only, and a "both modalities only"
+filter apply to both panels at once.
 
 **Color by:**
 

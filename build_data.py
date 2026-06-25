@@ -118,7 +118,7 @@ def build_drawings():
     coll = None  # lazy Mongo only if an image is missing
 
     anchors = clip_lib.anchor_feats("draw")
-    P = {k: [] for k in ("file", "cat", "age", "is_adult", "recog", "conf",
+    P = {k: [] for k in ("pid", "file", "cat", "age", "is_adult", "recog", "conf",
                          "conf_with", "strokes", "duration", "intensity",
                          "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
     layout = []
@@ -139,6 +139,7 @@ def build_drawings():
         layout.append([round(float(x), 5) for x in prob])
         vec, conf, conf_with = confusion(r, "draw")
         rc = fnum(r["draw_cossim_adults"])
+        P["pid"].append(pid)
         P["file"].append(fname)
         P["cat"].append(CAT_IDX[cat])
         P["age"].append(round(fnum(r["age_yrs"]) or 0, 1))
@@ -165,7 +166,7 @@ def build_descriptions():
     nk = len({r["participant_id"] for r in rows if r["is_child"] == "True"})
     print(f"DESCRIPTIONS: {len(rows)} clean ({nk} children + adults)")
     anchors = clip_lib.anchor_feats("text")
-    P = {k: [] for k in ("text", "cat", "age", "is_adult", "recog", "conf",
+    P = {k: [] for k in ("pid", "text", "cat", "age", "is_adult", "recog", "conf",
                          "conf_with", "nwords",
                          "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
     layout = []
@@ -178,6 +179,7 @@ def build_descriptions():
         layout.append([round(float(x), 5) for x in prob])
         vec, conf, conf_with = confusion(r, "utterance")
         rc = fnum(r["utterance_full_cossim_adults"])
+        P["pid"].append(r["participant_id"])
         P["text"].append(text)
         P["cat"].append(CAT_IDX[cat])
         P["age"].append(round(fnum(r["age_yrs"]) or 0, 1))
