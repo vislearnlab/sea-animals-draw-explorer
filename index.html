@@ -9,7 +9,7 @@
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--txt);
     font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
-  #app { display:grid; grid-template-columns:312px 1fr; height:100vh; }
+  #app { display:grid; grid-template-columns:300px 1fr 286px; height:100vh; }
   #side { background:var(--panel); border-right:1px solid var(--line); padding:16px; overflow-y:auto; }
   #side h1 { font-size:15px; margin:0 0 2px; }
   #side .sub { color:var(--muted); font-size:11px; margin-bottom:14px; }
@@ -30,6 +30,17 @@
   .btnrow { display:flex; gap:6px; flex-wrap:wrap; }
   .chip { cursor:pointer; width:auto; padding:5px 9px; font-size:11.5px; border-radius:20px; }
   .chip:hover { border-color:var(--accent); }
+  .chip.on { background:var(--accent); color:#06202a; border-color:var(--accent); }
+  /* alignment-by-age mini chart */
+  #ageTrend { margin-bottom:14px; }
+  #ageTrend .ttl2 { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:8px; }
+  #ageTrend .bars { display:flex; align-items:flex-end; gap:3px; height:96px; border-bottom:1px solid var(--line); }
+  #ageTrend .bar { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; }
+  #ageTrend .bar .b { width:100%; border-radius:3px 3px 0 0; min-height:1px; }
+  #ageTrend .bar .v { font-size:9px; color:var(--muted); margin-bottom:2px; font-variant-numeric:tabular-nums; }
+  #ageTrend .labels { display:flex; gap:3px; margin-top:3px; }
+  #ageTrend .labels span { flex:1; text-align:center; font-size:9.5px; color:var(--muted); }
+  #ageTrend .rnote { font-size:11px; color:var(--txt); margin-top:8px; }
   #catlist { border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:var(--panel2);
     display:grid; grid-template-columns:1fr 1fr; gap:1px 10px; }
   #catlist label { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; text-transform:capitalize; padding:2px 0; }
@@ -46,17 +57,17 @@
   .pane .ttl small { color:var(--muted); font-weight:400; }
   .pane .lk { position:absolute; right:12px; top:11px; font-size:11px; color:var(--accent); pointer-events:none;
     background:rgba(11,22,34,.7); padding:4px 9px; border-radius:7px; display:none; }
-  /* paired card (floats over the panes) */
-  #card { position:absolute; top:46px; right:14px; width:264px; background:var(--panel);
-    border:1px solid var(--line); border-radius:11px; padding:12px; display:none; z-index:5;
-    max-height:calc(100vh - 60px); overflow-y:auto; }
+  /* paired card lives in its own right column — never overlays the t-SNEs */
+  #detail { background:var(--panel); border-left:1px solid var(--line); overflow-y:auto; padding:14px; }
+  #detail .empty { color:var(--muted); font-size:12px; margin-top:8px; }
+  #card { position:relative; display:none; }
   #card.show { display:block; }
-  #card .cat { font-weight:600; margin:2px 24px 8px 0; font-size:14px; text-transform:capitalize; }
+  #card .cat { font-weight:600; margin:0 0 8px; font-size:14px; text-transform:capitalize; }
   #card .cat .who { color:var(--muted); font-weight:400; text-transform:none; }
   .panebox { border:1px solid var(--line); border-radius:9px; padding:8px; margin-bottom:9px; background:var(--panel2); }
   .panebox.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
   .panebox .lab { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px; }
-  .panebox img { width:228px; height:228px; image-rendering:auto; background:#fff; border-radius:6px; display:block; }
+  .panebox img { width:100%; aspect-ratio:1; image-rendering:auto; background:#fff; border-radius:6px; display:block; }
   .panebox .txt { font-size:13px; line-height:1.5; color:#dce8f1; font-style:italic; max-height:120px; overflow-y:auto; }
   .panebox .none { color:var(--muted); font-size:12px; font-style:italic; }
   .panebox table { width:100%; border-collapse:collapse; margin-top:7px; font-size:11.5px; }
@@ -92,6 +103,9 @@
         <optgroup label="Similarity to adults">
           <option value="recog">Similarity to adult prototype</option>
         </optgroup>
+        <optgroup label="Cross-modal">
+          <option value="agree">Drawing ↔ description agreement</option>
+        </optgroup>
         <optgroup label="Within-subject confusion">
           <option value="conf">Confusion strength (top off-target)</option>
         </optgroup>
@@ -114,12 +128,13 @@
     </div>
 
     <div class="group">
-      <label class="h">Producer age range</label>
+      <label class="h">Producer age</label>
+      <div class="btnrow" id="ageChips" style="margin-bottom:8px;"></div>
       <div class="rangewrap">
         <input type="range" id="ageMin" min="3" max="30" value="3" step="1" />
         <input type="range" id="ageMax" min="3" max="30" value="30" step="1" />
       </div>
-      <div class="stat" id="ageLabel">ages 3–30</div>
+      <div class="stat" id="ageLabel">all ages</div>
     </div>
 
     <div class="group">
@@ -144,13 +159,23 @@
       <canvas></canvas>
       <div class="ttl">💬 Descriptions <small id="cntDesc"></small></div>
       <div class="lk">↔ matched drawing</div>
-      <div id="card">
-        <button id="close">×</button>
-        <div class="cat" id="cardCat"></div>
-        <div id="cardBody"></div>
-      </div>
     </div>
   </main>
+
+  <aside id="detail">
+    <div id="ageTrend">
+      <div class="ttl2">Drawing ↔ description alignment by age</div>
+      <div class="bars" id="ageBars"></div>
+      <div class="labels" id="ageLabels"></div>
+      <div class="rnote" id="ageR"></div>
+    </div>
+    <label class="h" style="font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);">Selected item</label>
+    <div class="empty" id="detailEmpty">Hover a point in either panel to see the same child's drawing and description together.</div>
+    <div id="card">
+      <div class="cat" id="cardCat"></div>
+      <div id="cardBody"></div>
+    </div>
+  </aside>
 </div>
 
 <script>
@@ -173,7 +198,7 @@ function hsl(h,s,l){return `hsl(${h},${s}%,${l}%)`;}
 // ---------- shared filters / color ----------
 const F = { cats:new Set(), ageMin:3, ageMax:30, kidsOnly:false, pairedOnly:false, correctOnly:false };
 let colorMode="clip_tp";
-const NULLABLE = {recog:1, conf:1};
+const NULLABLE = {recog:1, conf:1, agree:1};
 let CATS=[];
 let selKey=null, pinned=false;   // current cross-modal selection key "pid|cat"
 
@@ -184,6 +209,7 @@ function colorOf(D,i){
     case "clip_logodds":return ramp(VIRIDIS, (D.clip_logodds[i]+10)/16);
     case "clip_guess":  return catColor(D.clip_guess[i], CATS.length);
     case "recog":       { const v=D.recog[i]; return v==null?null:ramp(VIRIDIS,(v-RECOG_LO)/(RECOG_HI-RECOG_LO)); }
+    case "agree":       { const v=D.agree[i]; return v==null?null:ramp(MAGMA, v); }
     case "conf":        { const v=D.conf[i];  return v==null?null:ramp(MAGMA,(v-0.2)/0.6); }
     case "age":         return hsl(lerp(220,12,(Math.min(D.age[i],12)-3)/9),70,58);
     case "cat":         return catColor(D.cat[i], CATS.length);
@@ -257,12 +283,12 @@ class Pane {
       if(pinned) return;
       const hh=this.nearest(px,py);
       const key = hh>=0 ? this.D.pid[hh]+"|"+this.D.cat[hh] : null;
-      if(key!==selKey){ selKey=key; drawAll(); if(key) showCard(key); else card.classList.remove("show"); }
+      if(key!==selKey){ selKey=key; drawAll(); if(key) showCard(key); else hideCard(); }
     });
     this.cv.addEventListener("click",e=>{ if(this.moved) return;
       const rect=this.cv.getBoundingClientRect(); const hh=this.nearest(e.clientX-rect.left,e.clientY-rect.top);
       if(hh>=0){ selKey=this.D.pid[hh]+"|"+this.D.cat[hh]; pinned=true; showCard(selKey); drawAll(); }
-      else { pinned=false; selKey=null; card.classList.remove("show"); drawAll(); } });
+      else { pinned=false; selKey=null; hideCard(); drawAll(); } });
     this.cv.addEventListener("wheel",e=>{ e.preventDefault();
       const rect=this.cv.getBoundingClientRect(), px=e.clientX-rect.left, py=e.clientY-rect.top;
       const f=Math.exp(-e.deltaY*0.0015); this.tx=px-(px-this.tx)*f; this.ty=py-(py-this.ty)*f; this.scale*=f;
@@ -302,19 +328,22 @@ function showCard(key){
   let corr="";
   if(di>=0 && ti>=0){
     const dg=ALL.drawings.clip_guess[di], tg=ALL.descriptions.clip_guess[ti];
-    const agree = dg===tg;
-    corr = `<div class="corr">CLIP sees both as <b>${agree?CATS[dg]:CATS[dg]+" / "+CATS[tg]}</b> — drawing &amp; description ${agree?'<b>agree</b>':'<b>differ</b>'}.</div>`;
+    const agree = dg===tg, sim=ALL.drawings.agree[di];
+    corr = `<div class="panebox"><div class="lab">Drawing ↔ description agreement</div>
+      <div class="corr">CLIP guess: <b>${agree?CATS[dg]+' (both)':CATS[dg]+' vs '+CATS[tg]}</b> — they ${agree?'<b>agree</b>':'<b>differ</b>'}.</div>
+      <div class="corr">probability-vector similarity: <b>${fmt(sim,2)}</b> ${sim>=.66?'(high)':sim>=.4?'(medium)':'(low)'}</div></div>`;
   } else {
-    corr = `<div class="corr">Only a ${di>=0?'drawing':'description'} exists for this child × category.</div>`;
+    corr = `<div class="corr" style="margin-top:4px;">Only a ${di>=0?'drawing':'description'} exists for this child × category — no agreement score.</div>`;
   }
   document.getElementById("cardBody").innerHTML =
     modBox("Drawing", di>=0?ALL.drawings:null, di, di>=0 && selKeyPane()==='drawings') +
     modBox("Description", ti>=0?ALL.descriptions:null, ti, ti>=0 && selKeyPane()==='descriptions') + corr;
   card.classList.add("show");
+  document.getElementById("detailEmpty").style.display="none";
 }
+function hideCard(){ card.classList.remove("show"); document.getElementById("detailEmpty").style.display="block"; }
 let _lastPane='drawings';
 function selKeyPane(){ return _lastPane; }
-document.getElementById("close").onclick=()=>{card.classList.remove("show");pinned=false;selKey=null;drawAll();};
 
 // ---------- legend ----------
 function buildLegend(){
@@ -333,6 +362,11 @@ function buildLegend(){
   } else if(colorMode==="clip_tp"){ grad(V,"0 (unrecognizable)","1 (clear)",false);
   } else if(colorMode==="clip_logodds"){ grad(V,"low","high",false);
   } else if(colorMode==="recog"){ grad(V,"low (–0.4)","high (0.9)",true);
+  } else if(colorMode==="agree"){ el.className="group grad";
+    el.innerHTML=`<div class="bar" style="background:linear-gradient(90deg,${M})"></div>
+      <div class="gradlabels"><span>differ</span><span>identical</span></div>
+      <div class="row" style="margin-top:6px;"><span class="sw" style="background:${NODATA};opacity:.5"></span>no matching ${'item in the other panel'}</div>
+      <div class="stat">cosine of the two CLIP probability vectors</div>`;
   } else if(colorMode==="conf"){ grad(M,"distinct","confusable",false);
   } else if(colorMode==="age"){ grad(`${hsl(220,70,58)},${hsl(116,70,58)},${hsl(12,70,58)}`,"age 3","age 12+",false); }
 }
@@ -344,10 +378,42 @@ function updateStat(){
   const a=paneStat(ALL.drawings), b=paneStat(ALL.descriptions);
   document.getElementById("cntDraw").textContent=`· ${a.n} shown · ${a.n?Math.round(100*a.corr/a.n):0}% CLIP-correct`;
   document.getElementById("cntDesc").textContent=`· ${b.n} shown · ${b.n?Math.round(100*b.corr/b.n):0}% CLIP-correct`;
-  // paired count among visible
-  let paired=0; const D=ALL.drawings;
-  for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue; const j=D.partner[i]; if(j>=0 && passes(ALL.descriptions,j)) paired++; }
-  document.getElementById("visStat").textContent=`${paired} child × category items have BOTH a drawing and a description visible.`;
+  // paired count + mean agreement among visible pairs
+  let paired=0, asum=0, atop=0; const D=ALL.drawings;
+  for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue; const j=D.partner[i];
+    if(j>=0 && passes(ALL.descriptions,j)){ paired++; asum+=D.agree[i]; atop+=D.agree_top[i]; } }
+  document.getElementById("visStat").textContent= paired
+    ? `${paired} items have BOTH modalities visible · mean drawing↔description agreement ${(asum/paired).toFixed(2)} · same CLIP guess ${Math.round(100*atop/paired)}%`
+    : `No items with both modalities visible under the current filters.`;
+  renderAgeTrend();
+}
+
+// mean drawing<->description alignment per age, over currently-visible pairs
+function renderAgeTrend(){
+  const D=ALL.drawings, byAge={}, xs=[], ys=[];
+  for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue; const j=D.partner[i];
+    if(j<0 || !passes(ALL.descriptions,j)) continue;
+    if(D.is_adult[i]) continue;                       // children only for the developmental trend
+    const a=Math.floor(D.age[i]); (byAge[a]=byAge[a]||[]).push(D.agree[i]);
+    xs.push(D.age[i]); ys.push(D.agree[i]);
+  }
+  const ages=Object.keys(byAge).map(Number).sort((a,b)=>a-b);
+  const bars=document.getElementById("ageBars"), labs=document.getElementById("ageLabels");
+  bars.innerHTML=""; labs.innerHTML="";
+  ages.forEach(a=>{ const v=byAge[a].reduce((s,x)=>s+x,0)/byAge[a].length;
+    const d=document.createElement("div"); d.className="bar"; d.title=`age ${a}: mean alignment ${v.toFixed(2)} (n=${byAge[a].length})`;
+    d.innerHTML=`<div class="v">${v.toFixed(2)}</div><div class="b" style="height:${Math.round(v*100)}%;background:${ramp(MAGMA,v)}"></div>`;
+    bars.appendChild(d);
+    const s=document.createElement("span"); s.textContent=a; labs.appendChild(s); });
+  // Pearson r between (continuous) age and alignment across visible child pairs
+  const note=document.getElementById("ageR");
+  if(xs.length>=4){
+    const n=xs.length, mx=xs.reduce((s,x)=>s+x,0)/n, my=ys.reduce((s,x)=>s+x,0)/n;
+    let sxy=0,sxx=0,syy=0; for(let k=0;k<n;k++){ const dx=xs[k]-mx, dy=ys[k]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+    const r=sxy/(Math.sqrt(sxx*syy)+1e-9);
+    const dir = r>0.02?"rises":r<-0.02?"falls":"is flat";
+    note.innerHTML=`Across ${n} child pairs, alignment ${dir} with age: <b>r = ${r.toFixed(2)}</b>`;
+  } else { note.textContent="Not enough visible child pairs for a trend."; }
 }
 
 // ---------- category checklist ----------
@@ -370,11 +436,29 @@ function buildCatList(){
 
 // ---------- controls ----------
 document.getElementById("colorby").onchange=e=>{colorMode=e.target.value;buildLegend();drawAll();updateStat();};
-function syncAge(){ let lo=+ageMin.value, hi=+ageMax.value; if(lo>hi){[lo,hi]=[hi,lo];}
-  F.ageMin=lo;F.ageMax=hi; document.getElementById("ageLabel").textContent=lo===hi?`age ${lo}`:`ages ${lo}–${hi}${hi>=30?'+':''}`;
-  drawAll();updateStat(); }
 const ageMin=document.getElementById("ageMin"), ageMax=document.getElementById("ageMax");
-ageMin.oninput=syncAge; ageMax.oninput=syncAge;
+function syncAge(fromChip){ let lo=+ageMin.value, hi=+ageMax.value; if(lo>hi){[lo,hi]=[hi,lo];}
+  F.ageMin=lo; F.ageMax=hi+0.999;   // include the whole year (ages are fractional)
+  document.getElementById("ageLabel").textContent=(lo<=3&&hi>=30)?"all ages":(lo===hi?`age ${lo}`:`ages ${lo}–${hi}${hi>=30?'+':''}`);
+  if(!fromChip) markAge(null);
+  drawAll();updateStat(); }
+ageMin.oninput=()=>syncAge(false); ageMax.oninput=()=>syncAge(false);
+function markAge(id){ document.querySelectorAll('#ageChips .chip').forEach(c=>c.classList.toggle('on', c.dataset.id===id)); }
+function buildAgeChips(){
+  const set=new Set();
+  for(const D of [ALL.drawings,ALL.descriptions]) for(let i=0;i<D.n;i++) if(!D.is_adult[i]) set.add(Math.floor(D.age[i]));
+  const ages=[...set].sort((a,b)=>a-b);
+  const wrap=document.getElementById("ageChips"); wrap.innerHTML="";
+  const mk=(label,lo,hi,id)=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=label; b.dataset.id=id;
+    b.onclick=()=>{ ageMin.value=Math.max(3,Math.min(30,Math.round(lo))); ageMax.value=Math.max(3,Math.min(30,Math.round(hi)));
+      F.ageMin=lo; F.ageMax=hi; markAge(id);
+      document.getElementById("ageLabel").textContent = id==="all"?"all ages":(id==="ad"?"adults":`age ${Math.floor(lo)}`);
+      drawAll(); updateStat(); };
+    wrap.appendChild(b); };
+  mk("All",3,30.999,"all");
+  ages.forEach(a=> mk(""+a, a, a+0.999, "a"+a));
+  mk("Adults",18,30.999,"ad");
+}
 document.getElementById("kidsOnly").onchange=e=>{F.kidsOnly=e.target.checked;drawAll();updateStat();};
 document.getElementById("pairedOnly").onchange=e=>{F.pairedOnly=e.target.checked;drawAll();updateStat();};
 document.getElementById("correctOnly").onchange=e=>{F.correctOnly=e.target.checked;drawAll();updateStat();};
@@ -399,7 +483,7 @@ async function load(){
   linkPanes();
   PD.setData(ALL.drawings); PT.setData(ALL.descriptions);
   CATS.forEach((_,i)=>F.cats.add(i));
-  buildCatList(); refreshCatUI();
+  buildCatList(); refreshCatUI(); buildAgeChips();
   const kd=ALL.drawings.is_adult.filter(v=>!v).length, kt=ALL.descriptions.is_adult.filter(v=>!v).length;
   document.getElementById("count").textContent=`${ALL.drawings.n} drawings (${kd} kids) · ${ALL.descriptions.n} descriptions (${kt} kids).`;
   await probeBase();

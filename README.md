@@ -17,6 +17,15 @@ same animal) lights up in the other, with a paired card showing both together �
 so you can explore how a child's drawing and description of the same concept
 correspond.
 
+**Drawing ↔ description agreement.** For the 527 child × category items that have
+both modalities, the page scores how much CLIP's classification of the drawing
+agrees with its classification of the description (cosine of the two 6-way
+probability vectors, plus a same-top-guess flag). Color by it, and the detail
+panel charts **mean alignment by age** with a Pearson *r* — consistent with the
+prediction that cross-modal alignment increases with age (r ≈ +0.13 across 411
+child pairs; mean alignment ~0.31 at age 3 → ~0.55 by age 10). Use the **age
+chips** to isolate a single year (or adults) in both panels at once.
+
 ## What it shows
 
 Each panel lays items out by a 2-D **t-SNE of its 6-way CLIP zero-shot

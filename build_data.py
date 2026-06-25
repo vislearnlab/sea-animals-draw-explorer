@@ -119,7 +119,7 @@ def build_drawings():
 
     anchors = clip_lib.anchor_feats("draw")
     P = {k: [] for k in ("pid", "file", "cat", "age", "is_adult", "recog", "conf",
-                         "conf_with", "strokes", "duration", "intensity",
+                         "conf_with", "strokes", "duration", "intensity", "clip_probs",
                          "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
     layout = []
     skipped = 0
@@ -137,6 +137,7 @@ def build_drawings():
             save_png(doc, path)
         prob = clip_lib.classify_image(path, anchors)
         layout.append([round(float(x), 5) for x in prob])
+        P["clip_probs"].append([round(float(x), 4) for x in prob])
         vec, conf, conf_with = confusion(r, "draw")
         rc = fnum(r["draw_cossim_adults"])
         P["pid"].append(pid)
@@ -167,7 +168,7 @@ def build_descriptions():
     print(f"DESCRIPTIONS: {len(rows)} clean ({nk} children + adults)")
     anchors = clip_lib.anchor_feats("text")
     P = {k: [] for k in ("pid", "text", "cat", "age", "is_adult", "recog", "conf",
-                         "conf_with", "nwords",
+                         "conf_with", "nwords", "clip_probs",
                          "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
     layout = []
     for j, r in enumerate(rows):
@@ -177,6 +178,7 @@ def build_descriptions():
             continue
         prob = clip_lib.classify_text(text, anchors)
         layout.append([round(float(x), 5) for x in prob])
+        P["clip_probs"].append([round(float(x), 4) for x in prob])
         vec, conf, conf_with = confusion(r, "utterance")
         rc = fnum(r["utterance_full_cossim_adults"])
         P["pid"].append(r["participant_id"])
@@ -231,9 +233,40 @@ def save_png(doc, path):
     bg.convert("RGB").save(path, "PNG")
 
 
+def cross_modal_agreement(draw, talk):
+    """Per (participant, category) pair: how much CLIP's classification of the
+    drawing agrees with its classification of the description.
+      agree     = cosine similarity of the two 6-way CLIP probability vectors
+      agree_top = 1 if both have the same CLIP top-1 guess, else 0
+    Stored (same value) on both modalities; None where the pair is missing."""
+    def key_index(P):
+        return {(P["pid"][i], P["cat"][i]): i for i in range(P["n"])}
+    dk, tk = key_index(draw), key_index(talk)
+    for P in (draw, talk):
+        P["agree"] = [None] * P["n"]
+        P["agree_top"] = [None] * P["n"]
+    n_pair = 0
+    for key, i in dk.items():
+        j = tk.get(key)
+        if j is None:
+            continue
+        a = np.asarray(draw["clip_probs"][i]); b = np.asarray(talk["clip_probs"][j])
+        cos = float(a @ b / ((np.linalg.norm(a) * np.linalg.norm(b)) + 1e-9))
+        top = 1 if draw["clip_guess"][i] == talk["clip_guess"][j] else 0
+        draw["agree"][i] = talk["agree"][j] = round(cos, 4)
+        draw["agree_top"][i] = talk["agree_top"][j] = top
+        n_pair += 1
+    agree_vals = [v for v in draw["agree"] if v is not None]
+    top_vals = [v for v in draw["agree_top"] if v is not None]
+    print(f"cross-modal: {n_pair} paired items · mean CLIP-prob agreement "
+          f"{sum(agree_vals)/len(agree_vals):.2f} · same top-guess "
+          f"{100*sum(top_vals)/len(top_vals):.0f}%")
+
+
 def main():
     draw = build_drawings()
     talk = build_descriptions()
+    cross_modal_agreement(draw, talk)
     out = dict(categories=CATEGORIES, groups=GROUPS, draw_dir="drawings",
                drawings=draw, descriptions=talk)
     with open(os.path.join(HERE, "points.json"), "w") as f:
