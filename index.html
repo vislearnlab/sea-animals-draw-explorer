@@ -31,16 +31,6 @@
   .chip { cursor:pointer; width:auto; padding:5px 9px; font-size:11.5px; border-radius:20px; }
   .chip:hover { border-color:var(--accent); }
   .chip.on { background:var(--accent); color:#06202a; border-color:var(--accent); }
-  /* alignment-by-age mini chart */
-  #ageTrend { margin-bottom:14px; }
-  #ageTrend .ttl2 { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:8px; }
-  #ageTrend .bars { display:flex; align-items:flex-end; gap:3px; height:96px; border-bottom:1px solid var(--line); }
-  #ageTrend .bar { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; }
-  #ageTrend .bar .b { width:100%; border-radius:3px 3px 0 0; min-height:1px; }
-  #ageTrend .bar .v { font-size:9px; color:var(--muted); margin-bottom:2px; font-variant-numeric:tabular-nums; }
-  #ageTrend .labels { display:flex; gap:3px; margin-top:3px; }
-  #ageTrend .labels span { flex:1; text-align:center; font-size:9.5px; color:var(--muted); }
-  #ageTrend .rnote { font-size:11px; color:var(--txt); margin-top:8px; }
   #catlist { border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:var(--panel2);
     display:grid; grid-template-columns:1fr 1fr; gap:1px 10px; }
   #catlist label { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; text-transform:capitalize; padding:2px 0; }
@@ -163,12 +153,6 @@
   </main>
 
   <aside id="detail">
-    <div id="ageTrend">
-      <div class="ttl2">Drawing ↔ description alignment by age</div>
-      <div class="bars" id="ageBars"></div>
-      <div class="labels" id="ageLabels"></div>
-      <div class="rnote" id="ageR"></div>
-    </div>
     <label class="h" style="font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);">Selected item</label>
     <div class="empty" id="detailEmpty">Hover a point in either panel to see the same child's drawing and description together.</div>
     <div id="card">
@@ -385,35 +369,6 @@ function updateStat(){
   document.getElementById("visStat").textContent= paired
     ? `${paired} items have BOTH modalities visible · mean drawing↔description agreement ${(asum/paired).toFixed(2)} · same CLIP guess ${Math.round(100*atop/paired)}%`
     : `No items with both modalities visible under the current filters.`;
-  renderAgeTrend();
-}
-
-// mean drawing<->description alignment per age, over currently-visible pairs
-function renderAgeTrend(){
-  const D=ALL.drawings, byAge={}, xs=[], ys=[];
-  for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue; const j=D.partner[i];
-    if(j<0 || !passes(ALL.descriptions,j)) continue;
-    if(D.is_adult[i]) continue;                       // children only for the developmental trend
-    const a=Math.floor(D.age[i]); (byAge[a]=byAge[a]||[]).push(D.agree[i]);
-    xs.push(D.age[i]); ys.push(D.agree[i]);
-  }
-  const ages=Object.keys(byAge).map(Number).sort((a,b)=>a-b);
-  const bars=document.getElementById("ageBars"), labs=document.getElementById("ageLabels");
-  bars.innerHTML=""; labs.innerHTML="";
-  ages.forEach(a=>{ const v=byAge[a].reduce((s,x)=>s+x,0)/byAge[a].length;
-    const d=document.createElement("div"); d.className="bar"; d.title=`age ${a}: mean alignment ${v.toFixed(2)} (n=${byAge[a].length})`;
-    d.innerHTML=`<div class="v">${v.toFixed(2)}</div><div class="b" style="height:${Math.round(v*100)}%;background:${ramp(MAGMA,v)}"></div>`;
-    bars.appendChild(d);
-    const s=document.createElement("span"); s.textContent=a; labs.appendChild(s); });
-  // Pearson r between (continuous) age and alignment across visible child pairs
-  const note=document.getElementById("ageR");
-  if(xs.length>=4){
-    const n=xs.length, mx=xs.reduce((s,x)=>s+x,0)/n, my=ys.reduce((s,x)=>s+x,0)/n;
-    let sxy=0,sxx=0,syy=0; for(let k=0;k<n;k++){ const dx=xs[k]-mx, dy=ys[k]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
-    const r=sxy/(Math.sqrt(sxx*syy)+1e-9);
-    const dir = r>0.02?"rises":r<-0.02?"falls":"is flat";
-    note.innerHTML=`Across ${n} child pairs, alignment ${dir} with age: <b>r = ${r.toFixed(2)}</b>`;
-  } else { note.textContent="Not enough visible child pairs for a trend."; }
 }
 
 // ---------- category checklist ----------
@@ -444,20 +399,20 @@ function syncAge(fromChip){ let lo=+ageMin.value, hi=+ageMax.value; if(lo>hi){[l
   drawAll();updateStat(); }
 ageMin.oninput=()=>syncAge(false); ageMax.oninput=()=>syncAge(false);
 function markAge(id){ document.querySelectorAll('#ageChips .chip').forEach(c=>c.classList.toggle('on', c.dataset.id===id)); }
+// dense, developmentally-meaningful age bins (children skew young, so these
+// give comparable n per bin: ~3–5 ≈ younger, 6–8 ≈ middle, 9–12 ≈ older)
+const AGE_BINS = [["3–5",3,5],["6–8",6,8],["9–12",9,12]];
 function buildAgeChips(){
-  const set=new Set();
-  for(const D of [ALL.drawings,ALL.descriptions]) for(let i=0;i<D.n;i++) if(!D.is_adult[i]) set.add(Math.floor(D.age[i]));
-  const ages=[...set].sort((a,b)=>a-b);
   const wrap=document.getElementById("ageChips"); wrap.innerHTML="";
   const mk=(label,lo,hi,id)=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=label; b.dataset.id=id;
     b.onclick=()=>{ ageMin.value=Math.max(3,Math.min(30,Math.round(lo))); ageMax.value=Math.max(3,Math.min(30,Math.round(hi)));
-      F.ageMin=lo; F.ageMax=hi; markAge(id);
-      document.getElementById("ageLabel").textContent = id==="all"?"all ages":(id==="ad"?"adults":`age ${Math.floor(lo)}`);
+      F.ageMin=lo; F.ageMax=hi+0.999; markAge(id);
+      document.getElementById("ageLabel").textContent = id==="all"?"all ages":(id==="ad"?"adults":`ages ${label}`);
       drawAll(); updateStat(); };
     wrap.appendChild(b); };
-  mk("All",3,30.999,"all");
-  ages.forEach(a=> mk(""+a, a, a+0.999, "a"+a));
-  mk("Adults",18,30.999,"ad");
+  mk("All",3,30,"all");
+  AGE_BINS.forEach(([lab,lo,hi])=> mk(lab, lo, hi, "b"+lo));
+  mk("Adults",18,30,"ad");
 }
 document.getElementById("kidsOnly").onchange=e=>{F.kidsOnly=e.target.checked;drawAll();updateStat();};
 document.getElementById("pairedOnly").onchange=e=>{F.pairedOnly=e.target.checked;drawAll();updateStat();};
