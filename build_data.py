@@ -1,71 +1,55 @@
 #!/usr/bin/env python3
 """
-Build drawings/ + points.json for the Sea Animals Drawing Explorer.
+Build drawings/ + points.json for the Sea Animals Drawing & Description Explorer.
 
-Pulls the finalImage PNGs for the six sea-animal categories out of the
-`kiddraw.birch_run_v1` MongoDB collection, joins them to the per-drawing
-metrics in sea-animals-draw/data/tidy/drawings.csv, and lays the drawings out
-with a 2-D t-SNE of the within-subject confusion vectors.
+Two modalities, laid out side by side:
 
-Two measures drive the page (both from the tidy CSV / the paper):
+  * DRAWINGS    — the finalImage PNGs from kiddraw.birch_run_v1 (MongoDB),
+                  joined to data/tidy/drawings.csv.
+  * DESCRIPTIONS — the masked transcripts from data/tidy/utterances.csv
+                  (no images; the card shows the text).
 
-  * recognizability  = `draw_cossim_adults`  — cosine similarity of the drawing
-    to the *adult prototype* embedding for its category. Higher = more
-    canonical / adult-like. This is the paper's headline developmental measure.
-    Adults have no value here (they DEFINE the prototype) -> shown faint.
+For each item we compute THREE families of scores:
 
-  * confusion vector = `draw_probability_{c}` — within-subject softmax over the
-    cosine similarity of this drawing to the SAME participant's drawings of the
-    other five categories. The target category's own slot is blank by
-    construction (you can't confuse a drawing with itself), so the layout uses
-    a 6-d vector with the target slot = 0 and the other five = these softmax
-    probabilities. argmax over the five = "most confusable with".
+  1. CLIP zero-shot classification  [NEW — not stored in the source repo]
+     The lab's exact model (OpenCLIP ViT-B-32, pretrained=openai) classifies
+     each drawing against "a drawing of a {cat}" and each description against
+     "a {cat}". Gives a 6-way softmax -> clip_tp (target prob), clip_guess,
+     clip_correct, clip_logodds. The 2-D t-SNE layout uses this CLIP vector.
 
-Mongo credentials are read from env SEA_MONGO_URI, or auth.txt (first line =
-full connection string). Nothing secret is committed.
+  2. Recognizability = cosine similarity to the adult prototype
+     (draw_cossim_adults / utterance_full_cossim_adults). Adults have none.
+
+  3. Within-subject confusion (draw/utterance_probability_{cat}) — softmax over
+     similarity to the SAME participant's other-category items.
+
+Mongo creds: env SEA_MONGO_URI or auth.txt (git-ignored). Drawings already on
+disk are reused, so a rebuild needs Mongo only for missing images.
 
     SEA_MONGO_URI='mongodb://user:pass@host:27017/?authSource=admin' python3 build_data.py
-
-Output:  drawings/<category>_<participant>.png (150x150) + points.json
 """
 import os, io, csv, json, base64
 
 import numpy as np
 from PIL import Image
-from pymongo import MongoClient
 from sklearn.manifold import TSNE
 
-# ---------------------------------------------------------------- config
-HERE = os.path.dirname(os.path.abspath(__file__))
-TIDY_CSV = os.environ.get(
-    "SEA_TIDY_CSV",
-    os.path.join(HERE, "..", "sea-animals-draw", "data", "tidy", "drawings.csv"),
-)
-DB_NAME, COLL = "kiddraw", "birch_run_v1"
-DRAW_DIR = os.path.join(HERE, "drawings")
+import clip_lib
+from clip_lib import CATEGORIES
 
-CATEGORIES = ["crab", "octopus", "seahorse", "shark", "turtle", "whale"]
 CAT_IDX = {c: i for i, c in enumerate(CATEGORIES)}
-MONGO_CAT = {  # how each category is stored in Mongo (with article)
-    "crab": "a crab", "octopus": "an octopus", "seahorse": "a seahorse",
-    "shark": "a shark", "turtle": "a turtle", "whale": "a whale",
-}
-GROUPS = {  # quick-filter chips by rough biological grouping (CATEGORIES indices)
-    "Invertebrates": [CAT_IDX["crab"], CAT_IDX["octopus"]],
-    "Fish": [CAT_IDX["seahorse"], CAT_IDX["shark"]],
-    "Reptile": [CAT_IDX["turtle"]],
-    "Mammal": [CAT_IDX["whale"]],
-}
-
-
-def mongo_uri():
-    if os.environ.get("SEA_MONGO_URI"):
-        return os.environ["SEA_MONGO_URI"]
-    auth = os.path.join(HERE, "auth.txt")
-    if os.path.exists(auth):
-        with open(auth) as f:
-            return f.readline().strip()
-    raise SystemExit("Set SEA_MONGO_URI or create auth.txt with the connection string.")
+HERE = os.path.dirname(os.path.abspath(__file__))
+TIDY_DIR = os.environ.get(
+    "SEA_TIDY_DIR", os.path.join(HERE, "..", "sea-animals-draw", "data", "tidy"))
+DRAW_CSV = os.path.join(TIDY_DIR, "drawings.csv")
+TALK_CSV = os.path.join(TIDY_DIR, "utterances.csv")
+DRAW_DIR = os.path.join(HERE, "drawings")
+DB_NAME, COLL = "kiddraw", "birch_run_v1"
+MONGO_CAT = {"crab": "a crab", "octopus": "an octopus", "seahorse": "a seahorse",
+             "shark": "a shark", "turtle": "a turtle", "whale": "a whale"}
+GROUPS = {"Invertebrates": [CAT_IDX["crab"], CAT_IDX["octopus"]],
+          "Fish": [CAT_IDX["seahorse"], CAT_IDX["shark"]],
+          "Reptile": [CAT_IDX["turtle"]], "Mammal": [CAT_IDX["whale"]]}
 
 
 def fnum(v):
@@ -75,107 +59,184 @@ def fnum(v):
         return None
 
 
-def main():
-    os.makedirs(DRAW_DIR, exist_ok=True)
-
-    # ---- load tidy metadata, keep the standard clean set --------------------
-    # (the paper's filter: draw_exists == 1, draw_interference == 0)
+def clean_rows(path, exist_col, intf_col):
     rows = []
-    with open(TIDY_CSV) as f:
+    with open(path) as f:
         for r in csv.DictReader(f):
-            if (r["draw_exists"] == "1" and r["draw_interference"] == "0"
+            if (r[exist_col] == "1" and r[intf_col] == "0"
                     and r["target_category"] in CAT_IDX):
                 rows.append(r)
-    nk = len(set(r["participant_id"] for r in rows if r["is_child"] == "True"))
-    print(f"{len(rows)} clean drawings ({nk} unique children + adults)")
+    return rows
 
-    # ---- pull latest finalImage per (participant, category) from Mongo ----
-    col = MongoClient(mongo_uri(), serverSelectionTimeoutMS=10000)[DB_NAME][COLL]
-    inv = {v: k for k, v in MONGO_CAT.items()}
-    best = {}
-    for d in col.find(
-        {"dataType": "finalImage",
-         "category": {"$in": list(MONGO_CAT.values())},
-         "participantID": {"$regex": "^(AD|BD)"}},
-        {"participantID": 1, "category": 1, "imgData": 1, "endTrialTime": 1},
-    ):
-        key = (d["participantID"], inv[d["category"]])
-        prev = best.get(key)
-        if prev is None or (d.get("endTrialTime") or 0) >= (prev.get("endTrialTime") or 0):
-            best[key] = d
-    print(f"{len(best)} unique (participant, category) finalImages in Mongo")
 
-    # ---- assemble points, save PNGs ---------------------------------------
-    P = dict(file=[], cat=[], age=[], is_adult=[], recog=[], conf=[],
-             conf_with=[], strokes=[], duration=[], intensity=[])
-    layout = []  # 6-d confusion vectors for t-SNE
-    missing = 0
-    for r in rows:
+def confusion(r, prefix):
+    """6-d within-subject vector (target slot 0) + (conf, conf_with) or (None,None)."""
+    vec = [0.0] * len(CATEGORIES)
+    has = False
+    cat = r["target_category"]
+    for c in CATEGORIES:
+        if c != cat:
+            v = fnum(r[f"{prefix}_probability_{c}"])
+            if v is not None:
+                vec[CAT_IDX[c]] = v
+                has = True
+    if not has:
+        return vec, None, None
+    ci = max((i for i in range(len(CATEGORIES)) if i != CAT_IDX[cat]),
+             key=lambda i: vec[i])
+    return vec, round(vec[ci], 4), ci
+
+
+def tsne_layout(vectors):
+    X = np.asarray(vectors, float)
+    Xz = (X - X.mean(0)) / (X.std(0) + 1e-9)
+    n = len(X)
+    perp = max(5, min(40, (n - 1) // 3))
+    print(f"  t-SNE on {n}x{X.shape[1]} (perplexity={perp}) ...")
+    emb = TSNE(n_components=2, perplexity=perp, init="pca",
+               learning_rate=200.0, random_state=0).fit_transform(Xz)
+    lo, hi = emb.min(0), emb.max(0)
+    emb = 40 + (emb - lo) / (hi - lo + 1e-9) * 920
+    return [round(float(v), 2) for v in emb[:, 0]], [round(float(v), 2) for v in emb[:, 1]]
+
+
+def clip_scores(prob, cat_i):
+    tp = float(prob[cat_i])
+    gi = int(prob.argmax())
+    return dict(clip_tp=round(tp, 4), clip_guess=gi,
+                clip_correct=1 if gi == cat_i else 0,
+                clip_logodds=round(float(np.log(tp / (1 - tp + 1e-9) + 1e-9)), 3),
+                clip_max=round(float(prob.max()), 4))
+
+
+# ---------------------------------------------------------------- drawings
+def build_drawings():
+    rows = clean_rows(DRAW_CSV, "draw_exists", "draw_interference")
+    nk = len({r["participant_id"] for r in rows if r["is_child"] == "True"})
+    print(f"DRAWINGS: {len(rows)} clean ({nk} children + adults)")
+    os.makedirs(DRAW_DIR, exist_ok=True)
+    coll = None  # lazy Mongo only if an image is missing
+
+    anchors = clip_lib.anchor_feats("draw")
+    P = {k: [] for k in ("file", "cat", "age", "is_adult", "recog", "conf",
+                         "conf_with", "strokes", "duration", "intensity",
+                         "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
+    layout = []
+    skipped = 0
+    for j, r in enumerate(rows):
         pid, cat = r["participant_id"], r["target_category"]
-        doc = best.get((pid, cat))
-        if doc is None:
-            missing += 1
-            continue
-        raw = doc["imgData"]
-        if raw.startswith("data:"):
-            raw = raw.split(",", 1)[1]
-        img = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGBA")
-        bg = Image.new("RGBA", img.size, (255, 255, 255, 255))  # white paper
-        bg.alpha_composite(img)
         fname = f"{cat}_{pid}.png"
-        bg.convert("RGB").save(os.path.join(DRAW_DIR, fname), "PNG")
-
-        # within-subject confusion vector: off-target slots from the toself
-        # softmax. Missing slots (child didn't draw that category) -> 0 so the
-        # drawing can still be laid out alongside the rest.
-        vec = [0.0] * len(CATEGORIES)
-        has_conf = False
-        for c in CATEGORIES:
-            if c != cat:
-                v = fnum(r[f"draw_probability_{c}"])
-                if v is not None:
-                    vec[CAT_IDX[c]] = v
-                    has_conf = True
-        layout.append(vec)
-        # most-confusable-with = argmax over off-target slots (None if no data)
-        if has_conf:
-            ci = max((i for i in range(len(CATEGORIES)) if i != CAT_IDX[cat]),
-                     key=lambda i: vec[i])
-        else:
-            ci = None
-
+        path = os.path.join(DRAW_DIR, fname)
+        if not os.path.exists(path):
+            if coll is None:
+                coll = mongo_coll()
+            doc = latest_image(coll, pid, cat)
+            if doc is None:
+                skipped += 1
+                continue
+            save_png(doc, path)
+        prob = clip_lib.classify_image(path, anchors)
+        layout.append([round(float(x), 5) for x in prob])
+        vec, conf, conf_with = confusion(r, "draw")
+        rc = fnum(r["draw_cossim_adults"])
         P["file"].append(fname)
         P["cat"].append(CAT_IDX[cat])
         P["age"].append(round(fnum(r["age_yrs"]) or 0, 1))
         P["is_adult"].append(1 if r["is_adult"] == "True" else 0)
-        rc = fnum(r["draw_cossim_adults"])
         P["recog"].append(round(rc, 4) if rc is not None else None)
-        P["conf"].append(round(vec[ci], 4) if ci is not None else None)
-        P["conf_with"].append(ci)
+        P["conf"].append(conf)
+        P["conf_with"].append(conf_with)
         P["strokes"].append(fnum(r["num_strokes"]))
         P["duration"].append(round(fnum(r["draw_duration"]) or 0, 1))
         P["intensity"].append(round(fnum(r["mean_intensity"]) or 0, 4))
-    n = len(P["file"])
-    print(f"{n} points assembled ({missing} skipped: no matching image)")
+        for k, v in clip_scores(prob, CAT_IDX[cat]).items():
+            P[k].append(v)
+        if (j + 1) % 100 == 0:
+            print(f"    {j + 1}/{len(rows)} drawings classified")
+    P["x"], P["y"] = tsne_layout(layout)
+    P["n"] = len(P["file"])
+    print(f"  -> {P['n']} drawings ({skipped} skipped: no image)")
+    return P
 
-    # ---- t-SNE layout on the confusion vectors ----------------------------
-    X = np.array(layout, float)
-    Xz = (X - X.mean(0)) / (X.std(0) + 1e-9)
-    perp = max(5, min(40, (n - 1) // 3))
-    print(f"t-SNE on {n}x{X.shape[1]} (perplexity={perp}) ...")
-    emb = TSNE(n_components=2, perplexity=perp, init="pca",
-               learning_rate=200.0, random_state=0).fit_transform(Xz)
-    lo, hi = emb.min(0), emb.max(0)
-    emb = 40 + (emb - lo) / (hi - lo + 1e-9) * 920  # fit into a 40..960 world
-    P["x"] = [round(float(v), 2) for v in emb[:, 0]]
-    P["y"] = [round(float(v), 2) for v in emb[:, 1]]
 
-    out = dict(draw_dir="drawings", categories=CATEGORIES, groups=GROUPS, n=n, **P)
+# ------------------------------------------------------------ descriptions
+def build_descriptions():
+    rows = clean_rows(TALK_CSV, "utterance_exists", "utterance_interference")
+    nk = len({r["participant_id"] for r in rows if r["is_child"] == "True"})
+    print(f"DESCRIPTIONS: {len(rows)} clean ({nk} children + adults)")
+    anchors = clip_lib.anchor_feats("text")
+    P = {k: [] for k in ("text", "cat", "age", "is_adult", "recog", "conf",
+                         "conf_with", "nwords",
+                         "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
+    layout = []
+    for j, r in enumerate(rows):
+        cat = r["target_category"]
+        text = (r["utterance_full_masked_filtered"] or "").strip()
+        if not text:
+            continue
+        prob = clip_lib.classify_text(text, anchors)
+        layout.append([round(float(x), 5) for x in prob])
+        vec, conf, conf_with = confusion(r, "utterance")
+        rc = fnum(r["utterance_full_cossim_adults"])
+        P["text"].append(text)
+        P["cat"].append(CAT_IDX[cat])
+        P["age"].append(round(fnum(r["age_yrs"]) or 0, 1))
+        P["is_adult"].append(1 if r["is_adult"] == "True" else 0)
+        P["recog"].append(round(rc, 4) if rc is not None else None)
+        P["conf"].append(conf)
+        P["conf_with"].append(conf_with)
+        P["nwords"].append(len(text.split()))
+        for k, v in clip_scores(prob, CAT_IDX[cat]).items():
+            P[k].append(v)
+        if (j + 1) % 100 == 0:
+            print(f"    {j + 1}/{len(rows)} descriptions classified")
+    P["x"], P["y"] = tsne_layout(layout)
+    P["n"] = len(P["text"])
+    print(f"  -> {P['n']} descriptions")
+    return P
+
+
+# ------------------------------------------------------------------- mongo
+def mongo_coll():
+    from pymongo import MongoClient
+    uri = os.environ.get("SEA_MONGO_URI")
+    if not uri and os.path.exists(os.path.join(HERE, "auth.txt")):
+        with open(os.path.join(HERE, "auth.txt")) as f:
+            uri = f.readline().strip()
+    if not uri:
+        raise SystemExit("Need an image but no SEA_MONGO_URI / auth.txt set.")
+    return MongoClient(uri, serverSelectionTimeoutMS=10000)[DB_NAME][COLL]
+
+
+def latest_image(coll, pid, cat):
+    inv = {v: k for k, v in MONGO_CAT.items()}
+    best = None
+    for d in coll.find({"dataType": "finalImage", "participantID": pid,
+                        "category": MONGO_CAT[cat]},
+                       {"imgData": 1, "endTrialTime": 1}):
+        if best is None or (d.get("endTrialTime") or 0) >= (best.get("endTrialTime") or 0):
+            best = d
+    return best
+
+
+def save_png(doc, path):
+    raw = doc["imgData"]
+    if raw.startswith("data:"):
+        raw = raw.split(",", 1)[1]
+    img = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGBA")
+    bg = Image.new("RGBA", img.size, (255, 255, 255, 255))
+    bg.alpha_composite(img)
+    bg.convert("RGB").save(path, "PNG")
+
+
+def main():
+    draw = build_drawings()
+    talk = build_descriptions()
+    out = dict(categories=CATEGORIES, groups=GROUPS, draw_dir="drawings",
+               drawings=draw, descriptions=talk)
     with open(os.path.join(HERE, "points.json"), "w") as f:
         json.dump(out, f)
-    n_adult = sum(P["is_adult"])
-    print(f"wrote points.json: {n} points ({n - n_adult} children, {n_adult} adults), "
-          f"{len(os.listdir(DRAW_DIR))} PNGs in drawings/")
+    print(f"wrote points.json: {draw['n']} drawings + {talk['n']} descriptions")
 
 
 if __name__ == "__main__":
