@@ -1,6 +1,6 @@
 # Sea Animals Drawing Explorer
 
-An interactive web page for exploring **551 children's and adults' drawings** of
+An interactive web page for exploring **602 children's and adults' drawings** of
 six sea animals (crab, octopus, seahorse, shark, turtle, whale), collected at the
 Birch Aquarium for the [`sea-animals-draw`](https://github.com/vislearnlab/sea-animals-draw)
 study. Built in the style of the
@@ -38,7 +38,7 @@ python3 -m http.server 8000
 
 - `index.html` — the self-contained explorer (no dependencies, no build step).
 - `points.json` — t-SNE layout + per-drawing scores consumed by the page.
-- `drawings/` — the 551 drawing PNGs (150×150, flattened onto white).
+- `drawings/` — the 602 drawing PNGs (150×150, flattened onto white).
 - `build_data.py` — regenerates `drawings/` + `points.json` (see below).
 
 ## Rebuilding the data
@@ -61,8 +61,9 @@ Credentials can instead go in an `auth.txt` file (first line = connection
 string); it is git-ignored.
 
 Only clean drawings are included (`draw_exists == 1`, `draw_interference == 0`)
-that also have a complete within-subject confusion vector — 431 children + 120
-adults = 551 drawings.
+that have a drawing image in Mongo — 482 drawings from 88 children + 120 from
+20 adults = 602 drawings. Where a child didn't draw all six categories, the
+missing confusion slots are zero-filled for the t-SNE layout.
 
 ## Data & paper
 

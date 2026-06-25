@@ -78,19 +78,16 @@ def fnum(v):
 def main():
     os.makedirs(DRAW_DIR, exist_ok=True)
 
-    # ---- load tidy metadata, keep clean drawings with a full confusion vec --
+    # ---- load tidy metadata, keep the standard clean set --------------------
+    # (the paper's filter: draw_exists == 1, draw_interference == 0)
     rows = []
     with open(TIDY_CSV) as f:
         for r in csv.DictReader(f):
-            if not (r["draw_exists"] == "1" and r["draw_interference"] == "0"
+            if (r["draw_exists"] == "1" and r["draw_interference"] == "0"
                     and r["target_category"] in CAT_IDX):
-                continue
-            off = [fnum(r[f"draw_probability_{c}"])
-                   for c in CATEGORIES if c != r["target_category"]]
-            if any(v is None for v in off):
-                continue  # incomplete confusion vector -> can't lay out
-            rows.append(r)
-    print(f"{len(rows)} clean drawings with full confusion vectors")
+                rows.append(r)
+    nk = len(set(r["participant_id"] for r in rows if r["is_child"] == "True"))
+    print(f"{len(rows)} clean drawings ({nk} unique children + adults)")
 
     # ---- pull latest finalImage per (participant, category) from Mongo ----
     col = MongoClient(mongo_uri(), serverSelectionTimeoutMS=10000)[DB_NAME][COLL]
@@ -128,14 +125,24 @@ def main():
         fname = f"{cat}_{pid}.png"
         bg.convert("RGB").save(os.path.join(DRAW_DIR, fname), "PNG")
 
+        # within-subject confusion vector: off-target slots from the toself
+        # softmax. Missing slots (child didn't draw that category) -> 0 so the
+        # drawing can still be laid out alongside the rest.
         vec = [0.0] * len(CATEGORIES)
+        has_conf = False
         for c in CATEGORIES:
             if c != cat:
-                vec[CAT_IDX[c]] = fnum(r[f"draw_probability_{c}"])
+                v = fnum(r[f"draw_probability_{c}"])
+                if v is not None:
+                    vec[CAT_IDX[c]] = v
+                    has_conf = True
         layout.append(vec)
-        # most-confusable-with = argmax over the off-target slots
-        ci = max((i for i in range(len(CATEGORIES)) if i != CAT_IDX[cat]),
-                 key=lambda i: vec[i])
+        # most-confusable-with = argmax over off-target slots (None if no data)
+        if has_conf:
+            ci = max((i for i in range(len(CATEGORIES)) if i != CAT_IDX[cat]),
+                     key=lambda i: vec[i])
+        else:
+            ci = None
 
         P["file"].append(fname)
         P["cat"].append(CAT_IDX[cat])
@@ -143,7 +150,7 @@ def main():
         P["is_adult"].append(1 if r["is_adult"] == "True" else 0)
         rc = fnum(r["draw_cossim_adults"])
         P["recog"].append(round(rc, 4) if rc is not None else None)
-        P["conf"].append(round(vec[ci], 4))
+        P["conf"].append(round(vec[ci], 4) if ci is not None else None)
         P["conf_with"].append(ci)
         P["strokes"].append(fnum(r["num_strokes"]))
         P["duration"].append(round(fnum(r["draw_duration"]) or 0, 1))

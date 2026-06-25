@@ -185,11 +185,11 @@ function passes(i){
 
 // ---------- color mode ----------
 let colorMode="recog";
-const NULLABLE = {recog:1};                       // modes where missing data -> faint
+const NULLABLE = {recog:1, conf:1};               // modes where missing data -> faint
 function colorOf(i){
   switch(colorMode){
     case "recog": { const v=D.recog[i]; return v==null?null:ramp(VIRIDIS, recogNorm(v)); }
-    case "conf":  return ramp(MAGMA, (D.conf[i]-0.2)/0.6);
+    case "conf":  { const v=D.conf[i];  return v==null?null:ramp(MAGMA, (v-0.2)/0.6); }
     case "age":   return hsl(lerp(220,12,(Math.min(D.age[i],12)-3)/9), 70, 58);
     case "cat":   return catColor(D.cat[i], D.categories.length);
   }
@@ -205,7 +205,7 @@ function draw(){
   if(nullable){
     ctx.globalAlpha=0.18; ctx.fillStyle=NODATA;
     for(let i=0;i<D.n;i++){
-      if(!passes(i) || D.recog[i]!=null) continue;
+      if(!passes(i) || D[colorMode][i]!=null) continue;
       const [sx,sy]=worldToScreen(D.x[i],D.y[i]);
       if(sx<-4||sy<-4||sx>w+4||sy>h+4) continue;
       ctx.beginPath(); ctx.arc(sx,sy,r,0,6.283); ctx.fill();
@@ -248,16 +248,18 @@ function showCard(i){
   document.getElementById("cardImg").src = IMG_BASE + D.draw_dir + "/" + D.file[i];
   const who = D.is_adult[i] ? "adult" : ("age " + D.age[i]);
   document.getElementById("cardCat").textContent = D.categories[D.cat[i]] + " · " + who;
-  const confWith = D.categories[D.conf_with[i]];
   const recog = D.recog[i]==null
     ? `<tr><td class="k" colspan="2">adult — defines the prototype</td></tr>`
     : `<tr><td class="k">cosine to adult</td><td class="v">${fmt(D.recog[i],3)}</td></tr>`;
+  const conf = D.conf_with[i]==null
+    ? `<tr><td class="k" colspan="2">drew only this category</td></tr>`
+    : `<tr><td class="k">most like their</td><td class="v"><span class="pill">${D.categories[D.conf_with[i]]}</span></td></tr>
+       <tr><td class="k">confusion prob</td><td class="v">${fmt(D.conf[i],2)}</td></tr>`;
   document.getElementById("cardTbl").innerHTML = `
     <tr class="sec"><td colspan="2">Recognizability</td></tr>
     ${recog}
     <tr class="sec"><td colspan="2">Within-subject confusion</td></tr>
-    <tr><td class="k">most like their</td><td class="v"><span class="pill">${confWith}</span></td></tr>
-    <tr><td class="k">confusion prob</td><td class="v">${fmt(D.conf[i],2)}</td></tr>
+    ${conf}
     <tr class="sec"><td colspan="2">Drawing</td></tr>
     <tr><td class="k"># strokes</td><td class="v">${D.strokes[i]==null?'—':D.strokes[i]}</td></tr>
     <tr><td class="k">draw time (s)</td><td class="v">${fmt(D.duration[i],1)}</td></tr>
@@ -289,12 +291,13 @@ function buildLegend(){
 
 // ---------- visible stat ----------
 function updateStat(){
-  let n=0, rs=0, rn=0, cs=0, kids=0;
-  for(let i=0;i<D.n;i++){ if(!passes(i))continue; n++; cs+=D.conf[i];
+  let n=0, rs=0, rn=0, cs=0, cn=0, kids=0;
+  for(let i=0;i<D.n;i++){ if(!passes(i))continue; n++;
     if(!D.is_adult[i])kids++;
-    if(D.recog[i]!=null){rs+=D.recog[i];rn++;} }
+    if(D.recog[i]!=null){rs+=D.recog[i];rn++;}
+    if(D.conf[i]!=null){cs+=D.conf[i];cn++;} }
   let s=`${n.toLocaleString()} drawings shown · ${kids} children / ${n-kids} adults`;
-  s+=` · mean recog ${rn?(rs/rn).toFixed(2):'—'} · mean confusion ${n?(cs/n).toFixed(2):'—'}`;
+  s+=` · mean recog ${rn?(rs/rn).toFixed(2):'—'} · mean confusion ${cn?(cs/cn).toFixed(2):'—'}`;
   document.getElementById("visStat").textContent=s;
 }
 
