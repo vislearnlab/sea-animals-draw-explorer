@@ -175,8 +175,9 @@ const card = document.getElementById("card");
 
 // ---------- color helpers ----------
 function lerp(a,b,t){return a+(b-a)*t;}
-const VIRIDIS=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
-const MAGMA  =[[13,8,38],[81,18,124],[183,55,121],[252,137,97],[252,253,191]];
+// low ends brightened so the darkest dots stay visible on the dark background
+const VIRIDIS=[[124,58,148],[64,98,158],[33,150,142],[94,201,98],[253,231,37]];
+const MAGMA  =[[120,55,140],[150,60,140],[200,70,120],[252,150,100],[252,253,191]];
 function ramp(stops,t){t=Math.max(0,Math.min(1,t));const s=t*(stops.length-1);const i=Math.floor(s),f=s-i;
   const a=stops[i],b=stops[Math.min(i+1,stops.length-1)];
   return `rgb(${Math.round(lerp(a[0],b[0],f))},${Math.round(lerp(a[1],b[1],f))},${Math.round(lerp(a[2],b[2],f))})`;}
