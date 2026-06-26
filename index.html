@@ -142,7 +142,7 @@
     <div class="group"><button id="reset" style="cursor:pointer;">Reset view</button></div>
 
     <div class="stat" id="visStat"></div>
-    <div class="stat" style="margin-top:12px;">Each panel: t-SNE of the 6-way CLIP (ViT-B-32) zero-shot probability vector. Drag to pan · scroll to zoom · hover for the item &amp; its cross-modal match · click to pin.</div>
+    <div class="stat" style="margin-top:12px;">Each panel: t-SNE of the raw CLIP (ViT-B-32) embeddings — the layout reflects visual/semantic similarity and stays fixed regardless of the color metric. Drag to pan · scroll to zoom · hover for the item &amp; its cross-modal match · click to pin.</div>
   </aside>
 
   <main id="panes">
@@ -456,9 +456,9 @@ function syncAge(fromChip){ let lo=+ageMin.value, hi=+ageMax.value; if(lo>hi){[l
   drawAll();updateStat(); }
 ageMin.oninput=()=>syncAge(false); ageMax.oninput=()=>syncAge(false);
 function markAge(id){ document.querySelectorAll('#ageChips .chip').forEach(c=>c.classList.toggle('on', c.dataset.id===id)); }
-// dense, developmentally-meaningful age bins (children skew young, so these
-// give comparable n per bin: ~3–5 ≈ younger, 6–8 ≈ middle, 9–12 ≈ older)
-const AGE_BINS = [["3–5",3,5],["6–8",6,8],["9–12",9,12]];
+// dense age bins (children skew young; these keep comparable n per bin and a
+// roomy "8+" older group): ~3–5 younger, 6–7 middle, 8+ older
+const AGE_BINS = [["3–5",3,5],["6–7",6,7],["8+",8,17]];
 function buildAgeChips(){
   const wrap=document.getElementById("ageChips"); wrap.innerHTML="";
   const mk=(label,lo,hi,id)=>{ const b=document.createElement("button"); b.className="chip"; b.textContent=label; b.dataset.id=id;

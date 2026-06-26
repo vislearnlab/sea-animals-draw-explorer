@@ -21,7 +21,7 @@ correspond.
 both modalities, the page scores how much CLIP's classification of the drawing
 agrees with its classification of the description (cosine of the two 6-way
 probability vectors, plus a same-top-guess flag). Color by it, use the **age
-bins** (3–5 / 6–8 / 9–12) to filter both panels at once, and read the visible
+bins** (3–5 / 6–7 / 8+) to filter both panels at once, and read the visible
 mean off the footer — **consistent with the prediction that cross-modal alignment
 increases with age** (Pearson r ≈ +0.27 across 411 child pairs; bin means rise
 0.67 → 0.76 → 0.79, and ~0.61 at age 3 → ~0.81 by age 11). A small **drawing-vs-
@@ -30,12 +30,13 @@ other for whichever metric/age group is currently shown, with its own *r*.
 
 ## What it shows
 
-Each panel lays items out by a 2-D **t-SNE of its 6-way CLIP zero-shot
-probability vector** — the same model the study's preprocessing uses (OpenCLIP
-**ViT-B-32**, `pretrained="openai"`). Confident classifications pull out to the
-corners of the simplex; confusable ones sit in the middle. Color, category /
-age filters, children-only, CLIP-correct-only, and a "both modalities only"
-filter apply to both panels at once.
+Each panel lays items out by a 2-D **t-SNE of the raw CLIP embeddings** (OpenCLIP
+**ViT-B-32**, `pretrained="openai"`) — so position reflects overall visual /
+semantic similarity and the layout is **fixed regardless of which metric you
+color by** (the classification numbers below are color layers on top of this
+fixed map, not the map itself). Color, category / age filters, children-only,
+CLIP-correct-only, and a "both modalities only" filter apply to both panels at
+once.
 
 **Color by:**
 
