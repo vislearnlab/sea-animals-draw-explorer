@@ -238,7 +238,9 @@ function inkMask(file,img){
   const id=mtx.getImageData(0,0,MSZ,MSZ), p=id.data;
   for(let k=0;k<p.length;k+=4){
     const lum=0.299*p[k]+0.587*p[k+1]+0.114*p[k+2];
-    p[k]=p[k+1]=p[k+2]=255; p[k+3]=(255-lum)*(p[k+3]/255);
+    // boost thin/antialiased strokes so sketches read solid, not washed out
+    let ink=(255-lum)/255; ink=Math.pow(ink,0.6);
+    p[k]=p[k+1]=p[k+2]=255; p[k+3]=Math.min(255, 255*ink*(p[k+3]/255)*1.15);
   }
   const c=document.createElement("canvas"); c.width=c.height=MSZ;
   c.getContext("2d").putImageData(id,0,0); maskCache.set(file,c); return c;
@@ -286,7 +288,7 @@ class Pane {
         const [sx,sy]=this.toScreen(D.x[i],D.y[i]); if(sx<-s||sy<-s||sx>w+s||sy>h+s) continue;
         const img=getImg(D.file[i]); if(!(img.complete && img.naturalWidth)) continue;
         const col=colorOf(D,i);
-        ctx.globalAlpha = col===null ? 0.14 : 0.72;        // no-data sketches stay faint
+        ctx.globalAlpha = col===null ? 0.28 : 0.95;        // no-data sketches stay faint
         drawTinted(ctx, D.file[i], img, col||NODATA, sx-s/2, sy-s/2, s);
       }
       ctx.globalAlpha=1;
