@@ -30,13 +30,11 @@ other for whichever metric/age group is currently shown, with its own *r*.
 
 ## What it shows
 
-Each panel lays items out by a 2-D **t-SNE of the raw CLIP embeddings** (OpenCLIP
-**ViT-B-32**, `pretrained="openai"`) — so position reflects overall visual /
-semantic similarity and the layout is **fixed regardless of which metric you
-color by** (the classification numbers below are color layers on top of this
-fixed map, not the map itself). Color, category / age filters, children-only,
-CLIP-correct-only, and a "both modalities only" filter apply to both panels at
-once.
+Each panel lays items out by a 2-D **t-SNE of the 6-way CLIP classification
+probabilities** (OpenCLIP **ViT-B-32**, `pretrained="openai"`). Confidently-
+classified items pull out to the spokes of the simplex; ambiguous ones sit in
+the middle. Color, category / age filters, children-only, CLIP-correct-only, and
+a "both modalities only" filter apply to both panels at once.
 
 **Color by:**
 

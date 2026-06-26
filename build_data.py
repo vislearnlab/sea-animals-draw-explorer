@@ -164,8 +164,10 @@ def build_drawings():
     P = {k: [] for k in ("pid", "file", "cat", "age", "is_adult", "recog", "conf",
                          "conf_with", "strokes", "duration", "intensity", "clip_probs",
                          "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
+    layout = []
     for r, prob in zip(kept, probs):
         pid, cat, ci = r["participant_id"], r["target_category"], CAT_IDX[r["target_category"]]
+        layout.append([float(x) for x in prob])
         P["clip_probs"].append([round(float(x), 4) for x in prob])
         vec, conf, conf_with = confusion(r, "draw")
         rc = fnum(r["draw_cossim_adults"])
@@ -182,7 +184,7 @@ def build_drawings():
         P["intensity"].append(round(fnum(r["mean_intensity"]) or 0, 4))
         for k, v in clip_scores(prob, ci).items():
             P[k].append(v)
-    P["x"], P["y"] = tsne_layout(embs)   # layout from the raw CLIP embeddings (stable)
+    P["x"], P["y"] = tsne_layout(layout)   # layout from CLIP probability vectors (spokes)
     P["n"] = len(P["file"])
     print(f"  -> {P['n']} drawings ({skipped} skipped: no image)")
     return P
@@ -208,8 +210,10 @@ def build_descriptions():
     P = {k: [] for k in ("pid", "text", "cat", "age", "is_adult", "recog", "conf",
                          "conf_with", "nwords", "clip_probs",
                          "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
+    layout = []
     for (r, text), prob in zip(kept, probs):
         ci = CAT_IDX[r["target_category"]]
+        layout.append([float(x) for x in prob])
         P["clip_probs"].append([round(float(x), 4) for x in prob])
         vec, conf, conf_with = confusion(r, "utterance")
         rc = fnum(r["utterance_full_cossim_adults"])
@@ -224,7 +228,7 @@ def build_descriptions():
         P["nwords"].append(len(text.split()))
         for k, v in clip_scores(prob, ci).items():
             P[k].append(v)
-    P["x"], P["y"] = tsne_layout(embs)   # layout from the raw CLIP embeddings (stable)
+    P["x"], P["y"] = tsne_layout(layout)   # layout from CLIP probability vectors (spokes)
     P["n"] = len(P["text"])
     print(f"  -> {P['n']} descriptions")
     return P
