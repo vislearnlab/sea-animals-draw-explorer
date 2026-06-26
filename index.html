@@ -21,11 +21,14 @@
   select:focus, input:focus { outline:1px solid var(--accent); }
   .rangewrap { display:flex; align-items:center; gap:8px; }
   .rangewrap input[type=range] { flex:1; accent-color:var(--accent); }
-  #legend { display:flex; flex-direction:column; gap:4px; }
-  #legend .row { display:flex; align-items:center; gap:8px; font-size:12px; text-transform:capitalize; }
-  #legend .sw { width:13px; height:13px; border-radius:3px; flex:none; }
-  #legend.grad .bar { height:12px; border-radius:4px; flex:1; }
-  #legend .gradlabels { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; }
+  #legend { display:flex; flex-direction:column; gap:5px; }
+  #legend .legtitle { font-weight:700; font-size:12.5px; }
+  #legend .legsub { color:var(--muted); font-size:11px; margin-top:-2px; }
+  #legend .row { display:flex; align-items:center; gap:8px; font-size:12.5px; text-transform:capitalize; }
+  #legend .sw { width:14px; height:14px; border-radius:3px; flex:none; }
+  #legend.grad .bar { height:20px; border-radius:5px; border:1px solid rgba(255,255,255,.18); }
+  #legend .gradlabels { display:flex; justify-content:space-between; color:var(--muted); font-size:11px;
+    font-variant-numeric:tabular-nums; }
   .stat { color:var(--muted); font-size:11px; margin-top:6px; }
   .btnrow { display:flex; gap:6px; flex-wrap:wrap; }
   .chip { cursor:pointer; width:auto; padding:5px 9px; font-size:11.5px; border-radius:20px; }
@@ -382,27 +385,27 @@ function selKeyPane(){ return _lastPane; }
 // ---------- legend ----------
 function buildLegend(){
   const el=document.getElementById("legend");
-  const grad=(stops,lo,hi,noData)=>{ el.className="group grad";
-    el.innerHTML=`<div class="bar" style="background:linear-gradient(90deg,${stops})"></div>
-      <div class="gradlabels"><span>${lo}</span><span>${hi}</span></div>
-      ${noData?`<div class="row" style="margin-top:6px;"><span class="sw" style="background:${NODATA};opacity:.5"></span>adults (define prototype)</div>`:''}`; };
+  const title=(t,sub)=>`<div class="legtitle">${t}</div>`+(sub?`<div class="legsub">${sub}</div>`:``);
+  const grad=(t,sub,stops,ticks,noData,noLabel)=>{ el.className="group grad";
+    el.innerHTML=title(t,sub)
+      +`<div class="bar" style="background:linear-gradient(90deg,${stops})"></div>`
+      +`<div class="gradlabels">${ticks.map(x=>`<span>${x}</span>`).join("")}</div>`
+      +(noData?`<div class="row" style="margin-top:7px;"><span class="sw" style="background:${NODATA};opacity:.6"></span>${noLabel}</div>`:``); };
   const V=VIRIDIS.map(c=>`rgb(${c})`).join(","), M=MAGMA.map(c=>`rgb(${c})`).join(",");
   if(colorMode==="clip_correct"){ el.className="group";
-    el.innerHTML=`<div class="row"><span class="sw" style="background:#5ed694"></span>CLIP correct</div>
-                  <div class="row"><span class="sw" style="background:#ff6b6b"></span>CLIP wrong</div>`;
+    el.innerHTML=title("CLIP classification","did CLIP pick the intended category?")
+      +`<div class="row"><span class="sw" style="background:#5ed694"></span>CLIP correct</div>
+        <div class="row"><span class="sw" style="background:#ff6b6b"></span>CLIP wrong</div>`;
   } else if(colorMode==="cat" || colorMode==="clip_guess"){ el.className="group";
-    el.innerHTML = CATS.map((c,i)=>`<div class="row"><span class="sw" style="background:${catColor(i,CATS.length)}"></span>${c}</div>`).join("")
-      + (colorMode==="clip_guess"?`<div class="stat">hue = the category CLIP guessed</div>`:``);
-  } else if(colorMode==="clip_tp"){ grad(V,"0 (unrecognizable)","1 (clear)",false);
-  } else if(colorMode==="clip_logodds"){ grad(V,"low","high",false);
-  } else if(colorMode==="recog"){ grad(V,"low (–0.4)","high (0.9)",true);
-  } else if(colorMode==="agree"){ el.className="group grad";
-    el.innerHTML=`<div class="bar" style="background:linear-gradient(90deg,${M})"></div>
-      <div class="gradlabels"><span>differ</span><span>identical</span></div>
-      <div class="row" style="margin-top:6px;"><span class="sw" style="background:${NODATA};opacity:.5"></span>no matching ${'item in the other panel'}</div>
-      <div class="stat">cosine of the two CLIP probability vectors</div>`;
-  } else if(colorMode==="conf"){ grad(M,"distinct","confusable",false);
-  } else if(colorMode==="age"){ grad(`${hsl(220,70,58)},${hsl(116,70,58)},${hsl(12,70,58)}`,"age 3","age 12+",false); }
+    el.innerHTML = title(colorMode==="cat"?"Target category":"CLIP's guessed category",
+        colorMode==="clip_guess"?"hue = category CLIP guessed":"hue = intended category")
+      + CATS.map((c,i)=>`<div class="row"><span class="sw" style="background:${catColor(i,CATS.length)}"></span>${c}</div>`).join("");
+  } else if(colorMode==="clip_tp"){ grad("CLIP recognizability","P(target category)",V,["0","0.5","1"],false);
+  } else if(colorMode==="clip_logodds"){ grad("CLIP log-odds","target vs. all other categories",V,["−10","−2","+6"],false);
+  } else if(colorMode==="recog"){ grad("Similarity to adult prototype","cosine to the adult CLIP vector",V,["−0.4","0.25","0.9"],true,"adults (define prototype)");
+  } else if(colorMode==="agree"){ grad("Drawing ↔ description agreement","cosine of the two CLIP vectors",M,["0","0.5","1"],true,"no matching item in the other panel");
+  } else if(colorMode==="conf"){ grad("Confusion strength","top off-target probability",M,["0.2","0.5","0.8"],false);
+  } else if(colorMode==="age"){ grad("Producer age","age of the child who drew it",`${hsl(220,70,58)},${hsl(116,70,58)},${hsl(12,70,58)}`,["3","8","12+"],false); }
 }
 
 // ---------- stats ----------
