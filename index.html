@@ -213,11 +213,27 @@ function passes(D,i){
 }
 
 // ---------- tinted sketches (white-background PNGs → ink-alpha mask) ----------
+// Throttled loader: GitHub Pages 429-rate-limits bursts, so cap concurrency and
+// back off / retry on errors.
 const imgCache=new Map();
+const MAX_CONC=5; let activeLoads=0; const loadQ=[];
 function getImg(file){
-  let im=imgCache.get(file); if(im) return im;
-  im=new Image(); im.onload=()=>drawAll(); imgCache.set(file,im);
-  im.src=IMG_BASE+ALL.draw_dir+"/"+file; return im;
+  let e=imgCache.get(file); if(e) return e.img;
+  e={img:new Image(), tries:0}; imgCache.set(file,e);
+  loadQ.push(file); pumpLoads(); return e.img;
+}
+function pumpLoads(){
+  while(activeLoads<MAX_CONC && loadQ.length){
+    const file=loadQ.shift(), e=imgCache.get(file);
+    if(!e || (e.img.complete && e.img.naturalWidth)) continue;
+    activeLoads++;
+    e.img.onload =()=>{ activeLoads--; drawAll(); pumpLoads(); };
+    e.img.onerror=()=>{ activeLoads--;
+      if(++e.tries<4) setTimeout(()=>{ loadQ.push(file); pumpLoads(); }, 2000*e.tries+Math.random()*1000);
+      pumpLoads();
+    };
+    e.img.src=IMG_BASE+ALL.draw_dir+"/"+file;
+  }
 }
 const MSZ=56, maskCache=new Map();
 const mtmp=document.createElement("canvas"); mtmp.width=mtmp.height=MSZ;
