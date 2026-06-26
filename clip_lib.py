@@ -50,8 +50,8 @@ def anchor_feats(which):
     return _encode_text(DRAW_ANCHORS if which == "draw" else TEXT_ANCHORS)
 
 
-def classify_image(path, anchors, content_crop=True):
-    """Return a length-6 softmax probability vector for one drawing PNG."""
+def image_embedding(path, content_crop=True):
+    """L2-normalized CLIP image embedding (512-d numpy) for one drawing PNG."""
     m = _load()
     img = Image.open(path).convert("RGB")
     if content_crop:
@@ -66,31 +66,31 @@ def classify_image(path, anchors, content_crop=True):
         x = m["preprocess"](img).unsqueeze(0).to(m["device"])
         f = m["model"].encode_image(x)
         f = f / f.norm(dim=-1, keepdim=True)
-        logits = m["logit_scale"] * f @ anchors.T
-        p = logits.softmax(dim=-1).cpu().numpy()[0]
-    return p
+    return f.cpu().numpy()[0]
 
 
-def _chunk(text, tok, max_len=75):
-    """Split into <=max_len-token chunks (CLIP's 77-token limit), evenly."""
-    ids = tok([text])  # open_clip tokenizer pads to context; recover raw length
-    # fall back to a simple word-based chunk: ~50 words ~ <75 tokens
+def _chunk(text, max_len=50):
+    """Split long text into word chunks (CLIP's 77-token limit ~ 50 words)."""
     words = text.split()
-    if len(words) <= 50:
+    if len(words) <= max_len:
         return [text]
-    n = math.ceil(len(words) / 50)
+    n = math.ceil(len(words) / max_len)
     size = math.ceil(len(words) / n)
     return [" ".join(words[i:i + size]) for i in range(0, len(words), size)]
 
 
-def classify_text(text, anchors):
-    """Return a length-6 softmax probability vector for one utterance."""
-    m = _load()
-    chunks = _chunk(text, m["tok"])
-    feats = _encode_text(chunks)              # (k, d), already L2-normalized
+def text_embedding(text):
+    """L2-normalized CLIP text embedding (512-d numpy), averaged over chunks."""
+    feats = _encode_text(_chunk(text))        # (k, d), already L2-normalized
     f = feats.mean(dim=0, keepdim=True)
     f = f / f.norm(dim=-1, keepdim=True)
-    with torch.no_grad():
-        logits = m["logit_scale"] * f @ anchors.T
-        p = logits.softmax(dim=-1).cpu().numpy()[0]
-    return p
+    return f.cpu().numpy()[0]
+
+
+def prototype_probs(emb, protos):
+    """6-way probabilities for an item: cosine to each adult prototype, then a
+    self-calibrating (z-scored) softmax so probs are graded, not saturated."""
+    sims = emb @ protos.T
+    z = (sims - sims.mean()) / (sims.std() + 1e-9)
+    p = np.exp(z)
+    return p / p.sum()

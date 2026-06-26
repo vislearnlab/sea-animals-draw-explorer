@@ -109,6 +109,31 @@ def clip_scores(prob, cat_i):
                 clip_max=round(float(prob.max()), 4))
 
 
+def prototype_classify(embs, cats_arr, isad):
+    """Classify each item against the six ADULT prototypes (mean adult embedding
+    per category) of the same modality — the study-aligned approach. For adult
+    items, leave-one-out their own embedding from their category prototype.
+    Returns a list of 6-way (z-softmax) probability vectors."""
+    E = np.asarray(embs)
+    K, d = len(CATEGORIES), E.shape[1]
+    psum = np.zeros((K, d)); pn = np.zeros(K)
+    for c in range(K):
+        sel = [i for i in range(len(E)) if isad[i] and cats_arr[i] == c]
+        if sel:
+            psum[c] = E[sel].sum(0); pn[c] = len(sel)
+    out = []
+    for i in range(len(E)):
+        protos = np.empty((K, d))
+        for c in range(K):
+            s, n = psum[c].copy(), pn[c]
+            if isad[i] and cats_arr[i] == c:          # leave-one-out for adults
+                s, n = s - E[i], n - 1
+            v = s / max(n, 1.0)
+            protos[c] = v / (np.linalg.norm(v) + 1e-9)
+        out.append(clip_lib.prototype_probs(E[i], protos))
+    return out
+
+
 # ---------------------------------------------------------------- drawings
 def build_drawings():
     rows = clean_rows(DRAW_CSV, "draw_exists", "draw_interference")
@@ -117,16 +142,10 @@ def build_drawings():
     os.makedirs(DRAW_DIR, exist_ok=True)
     coll = None  # lazy Mongo only if an image is missing
 
-    anchors = clip_lib.anchor_feats("draw")
-    P = {k: [] for k in ("pid", "file", "cat", "age", "is_adult", "recog", "conf",
-                         "conf_with", "strokes", "duration", "intensity", "clip_probs",
-                         "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
-    layout = []
-    skipped = 0
+    kept, embs, skipped = [], [], 0
     for j, r in enumerate(rows):
         pid, cat = r["participant_id"], r["target_category"]
-        fname = f"{cat}_{pid}.png"
-        path = os.path.join(DRAW_DIR, fname)
+        path = os.path.join(DRAW_DIR, f"{cat}_{pid}.png")
         if not os.path.exists(path):
             if coll is None:
                 coll = mongo_coll()
@@ -135,14 +154,26 @@ def build_drawings():
                 skipped += 1
                 continue
             save_png(doc, path)
-        prob = clip_lib.classify_image(path, anchors)
+        embs.append(clip_lib.image_embedding(path)); kept.append(r)
+        if (j + 1) % 100 == 0:
+            print(f"    {j + 1}/{len(rows)} drawings encoded")
+    cats_arr = [CAT_IDX[r["target_category"]] for r in kept]
+    isad = [r["is_adult"] == "True" for r in kept]
+    probs = prototype_classify(embs, cats_arr, isad)
+
+    P = {k: [] for k in ("pid", "file", "cat", "age", "is_adult", "recog", "conf",
+                         "conf_with", "strokes", "duration", "intensity", "clip_probs",
+                         "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
+    layout = []
+    for r, prob in zip(kept, probs):
+        pid, cat, ci = r["participant_id"], r["target_category"], CAT_IDX[r["target_category"]]
         layout.append([round(float(x), 5) for x in prob])
         P["clip_probs"].append([round(float(x), 4) for x in prob])
         vec, conf, conf_with = confusion(r, "draw")
         rc = fnum(r["draw_cossim_adults"])
         P["pid"].append(pid)
-        P["file"].append(fname)
-        P["cat"].append(CAT_IDX[cat])
+        P["file"].append(f"{cat}_{pid}.png")
+        P["cat"].append(ci)
         P["age"].append(round(fnum(r["age_yrs"]) or 0, 1))
         P["is_adult"].append(1 if r["is_adult"] == "True" else 0)
         P["recog"].append(round(rc, 4) if rc is not None else None)
@@ -151,10 +182,8 @@ def build_drawings():
         P["strokes"].append(fnum(r["num_strokes"]))
         P["duration"].append(round(fnum(r["draw_duration"]) or 0, 1))
         P["intensity"].append(round(fnum(r["mean_intensity"]) or 0, 4))
-        for k, v in clip_scores(prob, CAT_IDX[cat]).items():
+        for k, v in clip_scores(prob, ci).items():
             P[k].append(v)
-        if (j + 1) % 100 == 0:
-            print(f"    {j + 1}/{len(rows)} drawings classified")
     P["x"], P["y"] = tsne_layout(layout)
     P["n"] = len(P["file"])
     print(f"  -> {P['n']} drawings ({skipped} skipped: no image)")
@@ -166,34 +195,39 @@ def build_descriptions():
     rows = clean_rows(TALK_CSV, "utterance_exists", "utterance_interference")
     nk = len({r["participant_id"] for r in rows if r["is_child"] == "True"})
     print(f"DESCRIPTIONS: {len(rows)} clean ({nk} children + adults)")
-    anchors = clip_lib.anchor_feats("text")
+    kept, embs = [], []
+    for j, r in enumerate(rows):
+        text = (r["utterance_full_masked_filtered"] or "").strip()
+        if not text:
+            continue
+        embs.append(clip_lib.text_embedding(text)); kept.append((r, text))
+        if (j + 1) % 100 == 0:
+            print(f"    {j + 1}/{len(rows)} descriptions encoded")
+    cats_arr = [CAT_IDX[r["target_category"]] for r, _ in kept]
+    isad = [r["is_adult"] == "True" for r, _ in kept]
+    probs = prototype_classify(embs, cats_arr, isad)
+
     P = {k: [] for k in ("pid", "text", "cat", "age", "is_adult", "recog", "conf",
                          "conf_with", "nwords", "clip_probs",
                          "clip_tp", "clip_guess", "clip_correct", "clip_logodds", "clip_max")}
     layout = []
-    for j, r in enumerate(rows):
-        cat = r["target_category"]
-        text = (r["utterance_full_masked_filtered"] or "").strip()
-        if not text:
-            continue
-        prob = clip_lib.classify_text(text, anchors)
+    for (r, text), prob in zip(kept, probs):
+        ci = CAT_IDX[r["target_category"]]
         layout.append([round(float(x), 5) for x in prob])
         P["clip_probs"].append([round(float(x), 4) for x in prob])
         vec, conf, conf_with = confusion(r, "utterance")
         rc = fnum(r["utterance_full_cossim_adults"])
         P["pid"].append(r["participant_id"])
         P["text"].append(text)
-        P["cat"].append(CAT_IDX[cat])
+        P["cat"].append(ci)
         P["age"].append(round(fnum(r["age_yrs"]) or 0, 1))
         P["is_adult"].append(1 if r["is_adult"] == "True" else 0)
         P["recog"].append(round(rc, 4) if rc is not None else None)
         P["conf"].append(conf)
         P["conf_with"].append(conf_with)
         P["nwords"].append(len(text.split()))
-        for k, v in clip_scores(prob, CAT_IDX[cat]).items():
+        for k, v in clip_scores(prob, ci).items():
             P[k].append(v)
-        if (j + 1) % 100 == 0:
-            print(f"    {j + 1}/{len(rows)} descriptions classified")
     P["x"], P["y"] = tsne_layout(layout)
     P["n"] = len(P["text"])
     print(f"  -> {P['n']} descriptions")

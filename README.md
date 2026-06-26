@@ -20,11 +20,13 @@ correspond.
 **Drawing ↔ description agreement.** For the 527 child × category items that have
 both modalities, the page scores how much CLIP's classification of the drawing
 agrees with its classification of the description (cosine of the two 6-way
-probability vectors, plus a same-top-guess flag). Color by it, and the detail
-panel charts **mean alignment by age** with a Pearson *r* — consistent with the
-prediction that cross-modal alignment increases with age (r ≈ +0.13 across 411
-child pairs; mean alignment ~0.31 at age 3 → ~0.55 by age 10). Use the **age
-chips** to isolate a single year (or adults) in both panels at once.
+probability vectors, plus a same-top-guess flag). Color by it, use the **age
+bins** (3–5 / 6–8 / 9–12) to filter both panels at once, and read the visible
+mean off the footer — **consistent with the prediction that cross-modal alignment
+increases with age** (Pearson r ≈ +0.27 across 411 child pairs; bin means rise
+0.67 → 0.76 → 0.79, and ~0.61 at age 3 → ~0.81 by age 11). A small **drawing-vs-
+description scatter** in the right column plots the two modalities against each
+other for whichever metric/age group is currently shown, with its own *r*.
 
 ## What it shows
 
@@ -54,19 +56,28 @@ count, child/adult split, % CLIP-correct, and mean target probability.
 
 ## How the CLIP classification is computed
 
-The source repo stores CLIP **image embeddings** and within-subject / to-adult
-*similarities*, but **not** a zero-shot category classification — so this repo
-computes it (`clip_lib.py`):
+The source repo stores CLIP **embeddings** and within-subject / to-adult
+*similarities*, but **not** a category classification — so this repo computes one
+(`clip_lib.py`, OpenCLIP **ViT-B-32**, `pretrained="openai"`). Each item is
+classified against the six **adult prototypes** of its own modality — the mean
+adult embedding per category — exactly the reference the study uses for
+recognizability:
 
-- **Drawings:** each PNG is content-cropped and encoded with CLIP, then scored
-  against the six text anchors `"a drawing of a {category}"`; softmax over the
-  cosine similarities (CLIP's logit scale) gives the 6-way probability vector.
+- **Drawings:** each PNG is content-cropped and encoded with the CLIP image
+  encoder; cosine similarity to the six adult *drawing* prototypes → probabilities.
 - **Descriptions:** each masked transcript is encoded with the CLIP text encoder
-  (chunked and averaged past the 77-token limit) and scored against `"a
-  {category}"` anchors the same way.
+  (chunked and averaged past the 77-token limit); cosine similarity to the six
+  adult *description* prototypes → probabilities.
 
-CLIP top-1 accuracy: **48% on drawings, 44% on descriptions** (chance = 17%);
-adults score higher than children in both, as expected.
+Probabilities come from a self-calibrating (z-scored) softmax over the six
+similarities, so they're graded rather than saturated. Adult items leave their
+own embedding out of their category prototype.
+
+Using adult prototypes instead of bare text labels (`"a crab"`) matters a lot for
+descriptions: e.g. *"it has claws and it pinches people"* classifies as **crab**,
+where label-anchored CLIP wrongly called it a shark. CLIP top-1 accuracy:
+**49% on children's drawings, 67% on children's descriptions** (chance = 17%;
+adults 78% / 80%).
 
 ## Run locally
 

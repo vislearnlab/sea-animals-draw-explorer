@@ -31,6 +31,12 @@
   .chip { cursor:pointer; width:auto; padding:5px 9px; font-size:11.5px; border-radius:20px; }
   .chip:hover { border-color:var(--accent); }
   .chip.on { background:var(--accent); color:#06202a; border-color:var(--accent); }
+  /* cross-modal scatter */
+  #xmodal { margin-bottom:16px; }
+  #xmodal .ttl2 { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px; }
+  #xmCanvas { width:100%; display:block; background:var(--panel2); border:1px solid var(--line); border-radius:8px; }
+  #xmNote { font-size:11px; color:var(--txt); margin-top:6px; }
+  #xmNote b { color:var(--accent); }
   #catlist { border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:var(--panel2);
     display:grid; grid-template-columns:1fr 1fr; gap:1px 10px; }
   #catlist label { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; text-transform:capitalize; padding:2px 0; }
@@ -153,6 +159,11 @@
   </main>
 
   <aside id="detail">
+    <div id="xmodal">
+      <div class="ttl2" id="xmTitle">Drawing vs description</div>
+      <canvas id="xmCanvas" width="258" height="200"></canvas>
+      <div id="xmNote"></div>
+    </div>
     <label class="h" style="font-weight:600;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);">Selected item</label>
     <div class="empty" id="detailEmpty">Hover a point in either panel to see the same child's drawing and description together.</div>
     <div id="card">
@@ -369,6 +380,52 @@ function updateStat(){
   document.getElementById("visStat").textContent= paired
     ? `${paired} items have BOTH modalities visible · mean drawing↔description agreement ${(asum/paired).toFixed(2)} · same CLIP guess ${Math.round(100*atop/paired)}%`
     : `No items with both modalities visible under the current filters.`;
+  renderScatter();
+}
+
+// ---------- cross-modal scatter: drawing metric (x) vs description metric (y) ----------
+const SCATTER_METRICS = {
+  clip_tp:    {label:"CLIP target prob",       lo:0,    hi:1},
+  clip_logodds:{label:"CLIP log-odds",         lo:-10,  hi:6},
+  recog:      {label:"similarity to adult",    lo:-0.4, hi:0.9},
+  conf:       {label:"confusion strength",     lo:0,    hi:1},
+};
+function renderScatter(){
+  const cv=document.getElementById("xmCanvas"), ctx=cv.getContext("2d");
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth||258, H=200;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+"px"; ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  const key = SCATTER_METRICS[colorMode] ? colorMode : "clip_tp";
+  const M = SCATTER_METRICS[key];
+  document.getElementById("xmTitle").textContent = `Drawing vs description · ${M.label}`;
+  // gather visible pairs (drawing value x, description value y)
+  const D=ALL.drawings, T=ALL.descriptions, pts=[], xs=[], ys=[];
+  for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue; const j=D.partner[i]; if(j<0||!passes(T,j)) continue;
+    const x=D[key][i], y=T[key][j]; if(x==null||y==null) continue;
+    pts.push([x,y,D.cat[i]]); xs.push(x); ys.push(y); }
+  const m=44, l=34, b=26;                      // plot margins
+  const X=v=>l+( (v-M.lo)/(M.hi-M.lo) )*(W-l-8);
+  const Y=v=>H-b-( (v-M.lo)/(M.hi-M.lo) )*(H-b-8);
+  // axes + y=x diagonal
+  ctx.strokeStyle="#2a3a4a"; ctx.lineWidth=1;
+  ctx.strokeRect(l, 8, W-l-8, H-b-8);
+  ctx.strokeStyle="#3a4f63"; ctx.setLineDash([3,3]); ctx.beginPath();
+  ctx.moveTo(X(M.lo),Y(M.lo)); ctx.lineTo(X(M.hi),Y(M.hi)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="#8aa3b8"; ctx.font="9px sans-serif";
+  ctx.fillText("drawing →", W/2-18, H-6);
+  ctx.save(); ctx.translate(9,H/2+20); ctx.rotate(-Math.PI/2); ctx.fillText("description →",0,0); ctx.restore();
+  // points coloured by category
+  ctx.globalAlpha=0.8;
+  for(const [x,y,c] of pts){ ctx.fillStyle=catColor(c,CATS.length); ctx.beginPath(); ctx.arc(X(x),Y(y),2.6,0,6.283); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // Pearson r
+  const note=document.getElementById("xmNote");
+  if(xs.length>=4){
+    const n=xs.length, mx=xs.reduce((s,v)=>s+v,0)/n, my=ys.reduce((s,v)=>s+v,0)/n;
+    let sxy=0,sxx=0,syy=0; for(let k=0;k<n;k++){ const dx=xs[k]-mx, dy=ys[k]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+    const r=sxy/(Math.sqrt(sxx*syy)+1e-9);
+    note.innerHTML=`${n} pairs · drawing–description ${M.label}: <b>r = ${r.toFixed(2)}</b>`;
+  } else { note.textContent=`${xs.length} pairs — not enough to correlate.`; }
 }
 
 // ---------- category checklist ----------
@@ -418,7 +475,7 @@ document.getElementById("kidsOnly").onchange=e=>{F.kidsOnly=e.target.checked;dra
 document.getElementById("pairedOnly").onchange=e=>{F.pairedOnly=e.target.checked;drawAll();updateStat();};
 document.getElementById("correctOnly").onchange=e=>{F.correctOnly=e.target.checked;drawAll();updateStat();};
 document.getElementById("reset").onclick=()=>{PD.reset();PT.reset();};
-window.addEventListener("resize",()=>{PD.resize();PT.resize();});
+window.addEventListener("resize",()=>{PD.resize();PT.resize();renderScatter();});
 
 // track which pane the pointer last hovered (for card highlight)
 document.getElementById("paneDraw").addEventListener("mousemove",()=>_lastPane='drawings');
