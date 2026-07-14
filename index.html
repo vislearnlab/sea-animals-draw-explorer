@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sea Animals Explorer · drawings &amp; descriptions in CLIP space</title>
 <style>
-  :root { --bg:#0b1622; --panel:#10202f; --panel2:#16293b; --line:#23394d; --txt:#e6f0f7; --muted:#8aa3b8; --accent:#33c4d6; }
+  :root { --bg:#0b1622; --panel:#10202f; --panel2:#16293b; --line:#23394d; --txt:#e6f0f7; --muted:#8aa3b8; --accent:#33c4d6; --barborder:rgba(255,255,255,.18); --hintbg:rgba(11,22,34,.7); }
+  :root[data-theme="light"] { --bg:#ffffff; --panel:#f3f7fa; --panel2:#e9eff4; --line:#d3dde6; --txt:#16242f; --muted:#5a6b78; --accent:#0e7c8c; --barborder:rgba(0,0,0,.16); --hintbg:rgba(255,255,255,.85); }
+  #themeBtn { width:auto; padding:5px 10px; font-size:11px; float:right; margin-top:-2px; }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--txt);
     font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
@@ -26,7 +28,7 @@
   #legend .legsub { color:var(--muted); font-size:11px; margin-top:-2px; }
   #legend .row { display:flex; align-items:center; gap:8px; font-size:12.5px; text-transform:capitalize; }
   #legend .sw { width:14px; height:14px; border-radius:3px; flex:none; }
-  #legend.grad .bar { height:20px; border-radius:5px; border:1px solid rgba(255,255,255,.18); }
+  #legend.grad .bar { height:20px; border-radius:5px; border:1px solid var(--barborder); }
   #legend .gradlabels { display:flex; justify-content:space-between; color:var(--muted); font-size:11px;
     font-variant-numeric:tabular-nums; }
   .stat { color:var(--muted); font-size:11px; margin-top:6px; }
@@ -46,10 +48,10 @@
   .pane:first-child { border-right:1px solid var(--line); }
   .pane canvas { display:block; width:100%; height:100%; cursor:crosshair; }
   .pane .ttl { position:absolute; left:14px; top:11px; font-weight:600; font-size:13px; pointer-events:none;
-    background:rgba(11,22,34,.7); padding:4px 9px; border-radius:7px; }
+    background:var(--hintbg); padding:4px 9px; border-radius:7px; }
   .pane .ttl small { color:var(--muted); font-weight:400; }
   .pane .lk { position:absolute; right:12px; top:11px; font-size:11px; color:var(--accent); pointer-events:none;
-    background:rgba(11,22,34,.7); padding:4px 9px; border-radius:7px; display:none; }
+    background:var(--hintbg); padding:4px 9px; border-radius:7px; display:none; }
   /* paired card lives in its own right column — never overlays the t-SNEs */
   #detail { background:var(--panel); border-left:1px solid var(--line); overflow-y:auto; padding:14px; }
   #detail .empty { color:var(--muted); font-size:12px; margin-top:8px; }
@@ -61,7 +63,7 @@
   .panebox.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
   .panebox .lab { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:6px; }
   .panebox img { width:100%; aspect-ratio:1; image-rendering:auto; background:#fff; border-radius:6px; display:block; }
-  .panebox .txt { font-size:13px; line-height:1.5; color:#dce8f1; font-style:italic; max-height:120px; overflow-y:auto; }
+  .panebox .txt { font-size:13px; line-height:1.5; color:var(--txt); font-style:italic; max-height:120px; overflow-y:auto; }
   .panebox .none { color:var(--muted); font-size:12px; font-style:italic; }
   .panebox table { width:100%; border-collapse:collapse; margin-top:7px; font-size:11.5px; }
   .panebox td { padding:1px 0; }
@@ -81,6 +83,7 @@
 <body>
 <div id="app">
   <aside id="side">
+    <button id="themeBtn" title="Toggle light / dark theme">☀ Light</button>
     <h1>🐙 Sea Animals Explorer</h1>
     <div class="sub">Children's &amp; adults' <b>drawings</b> and <b>descriptions</b> of six sea animals, side by side in CLIP space. Hover a point to see its match in the other panel. <span id="count"></span></div>
 
@@ -169,7 +172,6 @@
 <script>
 const IMG_BASE_FALLBACKS = ["./", "", "../"];
 let ALL=null, IMG_BASE="./";
-const NODATA = "#33414d";
 const RECOG_LO=-0.4, RECOG_HI=0.9;
 const card = document.getElementById("card");
 
@@ -178,6 +180,15 @@ function lerp(a,b,t){return a+(b-a)*t;}
 // low ends brightened so the darkest dots stay visible on the dark background
 const VIRIDIS=[[124,58,148],[64,98,158],[33,150,142],[94,201,98],[253,231,37]];
 const MAGMA  =[[120,55,140],[150,60,140],[200,70,120],[252,150,100],[252,253,191]];
+// theme-dependent canvas colors (page chrome handled by CSS variables);
+// light theme darkens the ramps' bright ends so they stay visible on white
+const THEMES = {
+  dark:  { nodata:"#33414d", ring:"#ffffff", ringHover:"#cfefff", viridis:VIRIDIS, magma:MAGMA },
+  light: { nodata:"#c2cdd6", ring:"#11161d", ringHover:"#0e7c8c",
+           viridis:[[94,40,120],[52,92,150],[26,135,128],[60,160,70],[150,150,18]],
+           magma:[[110,45,128],[150,52,122],[198,60,104],[210,105,55],[170,128,45]] },
+};
+let TH = THEMES.dark;
 function ramp(stops,t){t=Math.max(0,Math.min(1,t));const s=t*(stops.length-1);const i=Math.floor(s),f=s-i;
   const a=stops[i],b=stops[Math.min(i+1,stops.length-1)];
   return `rgb(${Math.round(lerp(a[0],b[0],f))},${Math.round(lerp(a[1],b[1],f))},${Math.round(lerp(a[2],b[2],f))})`;}
@@ -193,13 +204,13 @@ let selKey=null, pinned=false;   // current cross-modal selection key "pid|cat"
 
 function colorOf(D,i){
   switch(colorMode){
-    case "clip_tp":     return ramp(VIRIDIS, D.clip_tp[i]);
+    case "clip_tp":     return ramp(TH.viridis, D.clip_tp[i]);
     case "clip_correct":return D.clip_correct[i] ? "#5ed694" : "#ff6b6b";
-    case "clip_logodds":return ramp(VIRIDIS, (D.clip_logodds[i]+10)/16);
+    case "clip_logodds":return ramp(TH.viridis, (D.clip_logodds[i]+10)/16);
     case "clip_guess":  return catColor(D.clip_guess[i], CATS.length);
-    case "recog":       { const v=D.recog[i]; return v==null?null:ramp(VIRIDIS,(v-RECOG_LO)/(RECOG_HI-RECOG_LO)); }
-    case "agree":       { const v=D.agree[i]; return v==null?null:ramp(MAGMA, v); }
-    case "conf":        { const v=D.conf[i];  return v==null?null:ramp(MAGMA,(v-0.2)/0.6); }
+    case "recog":       { const v=D.recog[i]; return v==null?null:ramp(TH.viridis,(v-RECOG_LO)/(RECOG_HI-RECOG_LO)); }
+    case "agree":       { const v=D.agree[i]; return v==null?null:ramp(TH.magma, v); }
+    case "conf":        { const v=D.conf[i];  return v==null?null:ramp(TH.magma,(v-0.2)/0.6); }
     case "age":         return hsl(lerp(220,12,(Math.min(D.age[i],12)-3)/9),70,58);
     case "cat":         return catColor(D.cat[i], CATS.length);
   }
@@ -298,11 +309,11 @@ class Pane {
         const img=getImg(D.file[i]); if(!(img.complete && img.naturalWidth)) continue;
         const col=colorOf(D,i);
         ctx.globalAlpha = col===null ? 0.28 : 0.95;        // no-data sketches stay faint
-        drawTinted(ctx, D.file[i], img, col||NODATA, sx-s/2, sy-s/2, s);
+        drawTinted(ctx, D.file[i], img, col||TH.nodata, sx-s/2, sy-s/2, s);
       }
       ctx.globalAlpha=1;
     } else {
-      if(nullable){ ctx.globalAlpha=0.16; ctx.fillStyle=NODATA;
+      if(nullable){ ctx.globalAlpha=0.16; ctx.fillStyle=TH.nodata;
         for(let i=0;i<D.n;i++){ if(!passes(D,i)||D[colorMode][i]!=null) continue;
           const [sx,sy]=this.toScreen(D.x[i],D.y[i]); if(sx<-4||sy<-4||sx>w+4||sy>h+4) continue;
           ctx.beginPath(); ctx.arc(sx,sy,r,0,6.283); ctx.fill(); } }
@@ -318,8 +329,8 @@ class Pane {
     this.lk.style.display = (si>=0 && passes(D,si)) ? "block" : "none";
     if(si>=0 && passes(D,si)){
       const [sx,sy]=this.toScreen(D.x[si],D.y[si]);
-      ctx.beginPath(); ctx.arc(sx,sy,7,0,6.283); ctx.strokeStyle=pinned?"#fff":"#cfefff"; ctx.lineWidth=2.5; ctx.stroke();
-      const c=colorOf(D,si); ctx.beginPath(); ctx.arc(sx,sy,5,0,6.283); ctx.fillStyle=c||NODATA; ctx.fill();
+      ctx.beginPath(); ctx.arc(sx,sy,7,0,6.283); ctx.strokeStyle=pinned?TH.ring:TH.ringHover; ctx.lineWidth=2.5; ctx.stroke();
+      const c=colorOf(D,si); ctx.beginPath(); ctx.arc(sx,sy,5,0,6.283); ctx.fillStyle=c||TH.nodata; ctx.fill();
     }
   }
   nearest(px,py){ const D=this.D; let best=-1,bd=14*14;
@@ -407,8 +418,8 @@ function buildLegend(){
     el.innerHTML=title(t,sub)
       +`<div class="bar" style="background:linear-gradient(90deg,${stops})"></div>`
       +`<div class="gradlabels">${ticks.map(x=>`<span>${x}</span>`).join("")}</div>`
-      +(noData?`<div class="row" style="margin-top:7px;"><span class="sw" style="background:${NODATA};opacity:.6"></span>${noLabel}</div>`:``); };
-  const V=VIRIDIS.map(c=>`rgb(${c})`).join(","), M=MAGMA.map(c=>`rgb(${c})`).join(",");
+      +(noData?`<div class="row" style="margin-top:7px;"><span class="sw" style="background:${TH.nodata};opacity:.6"></span>${noLabel}</div>`:``); };
+  const V=TH.viridis.map(c=>`rgb(${c})`).join(","), M=TH.magma.map(c=>`rgb(${c})`).join(",");
   if(colorMode==="clip_correct"){ el.className="group";
     el.innerHTML=title("CLIP classification","did CLIP pick the intended category?")
       +`<div class="row"><span class="sw" style="background:#5ed694"></span>CLIP correct</div>
@@ -460,6 +471,18 @@ function buildCatList(){
 }
 
 // ---------- controls ----------
+function applyTheme(name){
+  TH = THEMES[name] || THEMES.dark;
+  document.documentElement.dataset.theme = name;
+  const btn=document.getElementById("themeBtn");
+  if(btn) btn.textContent = name==="light" ? "🌙 Dark" : "☀ Light";
+  try { localStorage.setItem("seaTheme", name); } catch(e){}
+  if(ALL){ buildLegend(); drawAll(); }
+}
+document.getElementById("themeBtn").onclick=()=>{
+  applyTheme(document.documentElement.dataset.theme==="light" ? "dark" : "light");
+};
+(function initTheme(){ let t="dark"; try { t=localStorage.getItem("seaTheme")||"dark"; } catch(e){} applyTheme(t); })();
 document.getElementById("colorby").onchange=e=>{colorMode=e.target.value;buildLegend();drawAll();updateStat();};
 const ageMin=document.getElementById("ageMin"), ageMax=document.getElementById("ageMax");
 function syncAge(fromChip){ let lo=+ageMin.value, hi=+ageMax.value; if(lo>hi){[lo,hi]=[hi,lo];}
