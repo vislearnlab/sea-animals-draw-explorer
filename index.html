@@ -83,8 +83,8 @@
 <body>
 <div id="app">
   <aside id="side">
-    <button id="themeBtn" title="Toggle light / dark theme">☀ Light</button>
-    <h1>🐙 Sea Animals Explorer</h1>
+    <button id="themeBtn" title="Toggle light / dark theme">Light</button>
+    <h1>Sea Animals Explorer</h1>
     <div class="sub">Children's &amp; adults' <b>drawings</b> and <b>descriptions</b> of six sea animals, side by side in CLIP space. Hover a point to see its match in the other panel. <span id="count"></span></div>
 
     <div class="group">
@@ -100,7 +100,7 @@
           <option value="recog">Similarity to adult prototype</option>
         </optgroup>
         <optgroup label="Cross-modal">
-          <option value="agree">Drawing ↔ description agreement</option>
+          <option value="agree">Drawing–description agreement</option>
         </optgroup>
         <optgroup label="Within-subject confusion">
           <option value="conf">Confusion strength (top off-target)</option>
@@ -149,13 +149,13 @@
   <main id="panes">
     <div class="pane" id="paneDraw">
       <canvas></canvas>
-      <div class="ttl">✏️ Drawings <small id="cntDraw"></small></div>
-      <div class="lk">↔ matched description</div>
+      <div class="ttl">Drawings <small id="cntDraw"></small></div>
+      <div class="lk">matched description</div>
     </div>
     <div class="pane" id="paneDesc">
       <canvas></canvas>
-      <div class="ttl">💬 Descriptions <small id="cntDesc"></small></div>
-      <div class="lk">↔ matched drawing</div>
+      <div class="ttl">Descriptions <small id="cntDesc"></small></div>
+      <div class="lk">matched drawing</div>
     </div>
   </main>
 
@@ -379,7 +379,7 @@ function modBox(label, D, i, active){
     : `<tr><td class="k"># words</td><td class="v">${D.nwords[i]}</td></tr>`;
   return `<div class="panebox${active?' active':''}"><div class="lab">${label}</div>${media}
     <table>
-      <tr><td class="k">CLIP guess</td><td class="v">${guess} <span class="pill ${ok?'ok':'no'}">${ok?'✓':'✗'}</span></td></tr>
+      <tr><td class="k">CLIP guess</td><td class="v">${guess} <span class="pill ${ok?'ok':'no'}">${ok?"correct":"wrong"}</span></td></tr>
       <tr><td class="k">target prob</td><td class="v">${fmt(D.clip_tp[i],3)}</td></tr>
       ${recog}${extra}
     </table></div>`;
@@ -394,7 +394,7 @@ function showCard(key){
   if(di>=0 && ti>=0){
     const dg=ALL.drawings.clip_guess[di], tg=ALL.descriptions.clip_guess[ti];
     const agree = dg===tg, sim=ALL.drawings.agree[di];
-    corr = `<div class="panebox"><div class="lab">Drawing ↔ description agreement</div>
+    corr = `<div class="panebox"><div class="lab">Drawing–description agreement</div>
       <div class="corr">CLIP guess: <b>${agree?CATS[dg]+' (both)':CATS[dg]+' vs '+CATS[tg]}</b> — they ${agree?'<b>agree</b>':'<b>differ</b>'}.</div>
       <div class="corr">probability-vector similarity: <b>${fmt(sim,2)}</b> ${sim>=.66?'(high)':sim>=.4?'(medium)':'(low)'}</div></div>`;
   } else {
@@ -431,7 +431,7 @@ function buildLegend(){
   } else if(colorMode==="clip_tp"){ grad("CLIP recognizability","P(target category)",V,["0","0.5","1"],false);
   } else if(colorMode==="clip_logodds"){ grad("CLIP log-odds","target vs. all other categories",V,["−10","−2","+6"],false);
   } else if(colorMode==="recog"){ grad("Similarity to adult prototype","cosine to the adult CLIP vector",V,["−0.4","0.25","0.9"],true,"adults (define prototype)");
-  } else if(colorMode==="agree"){ grad("Drawing ↔ description agreement","cosine of the two CLIP vectors",M,["0","0.5","1"],true,"no matching item in the other panel");
+  } else if(colorMode==="agree"){ grad("Drawing–description agreement","cosine of the two CLIP vectors",M,["0","0.5","1"],true,"no matching item in the other panel");
   } else if(colorMode==="conf"){ grad("Confusion strength","top off-target probability",M,["0.2","0.5","0.8"],false);
   } else if(colorMode==="age"){ grad("Producer age","age of the child who drew it",`${hsl(220,70,58)},${hsl(116,70,58)},${hsl(12,70,58)}`,["3","8","12+"],false); }
 }
@@ -448,7 +448,7 @@ function updateStat(){
   for(let i=0;i<D.n;i++){ if(!passes(D,i)) continue; const j=D.partner[i];
     if(j>=0 && passes(ALL.descriptions,j)){ paired++; asum+=D.agree[i]; atop+=D.agree_top[i]; } }
   document.getElementById("visStat").textContent= paired
-    ? `${paired} items have BOTH modalities visible · mean drawing↔description agreement ${(asum/paired).toFixed(2)} · same CLIP guess ${Math.round(100*atop/paired)}%`
+    ? `${paired} items have BOTH modalities visible · mean drawing–description agreement ${(asum/paired).toFixed(2)} · same CLIP guess ${Math.round(100*atop/paired)}%`
     : `No items with both modalities visible under the current filters.`;
 }
 
@@ -475,7 +475,7 @@ function applyTheme(name){
   TH = THEMES[name] || THEMES.dark;
   document.documentElement.dataset.theme = name;
   const btn=document.getElementById("themeBtn");
-  if(btn) btn.textContent = name==="light" ? "🌙 Dark" : "☀ Light";
+  if(btn) btn.textContent = name==="light" ? "Dark" : "Light";
   try { localStorage.setItem("seaTheme", name); } catch(e){}
   if(ALL){ buildLegend(); drawAll(); }
 }
